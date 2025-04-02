@@ -242,7 +242,12 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
         {activeTab === 'utenti' && (
           <div className="px-4 py-6 sm:px-0">
             <div className="border-4 border-dashed border-gray-200 rounded-lg p-4">
-              <UserManagement />
+              <UserManagement 
+                currentUser={username}
+                onAdminPasswordChange={(newPassword: string) => {
+                  localStorage.setItem('adminPassword', newPassword);
+                }}
+              />
             </div>
           </div>
         )}
