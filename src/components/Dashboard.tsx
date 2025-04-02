@@ -194,6 +194,17 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     setSuppliers(updatedSuppliers);
   };
 
+  const handleAdminPasswordChange = async (newPassword: string) => {
+    const { error } = await supabase
+      .from('users')
+      .update({ password: newPassword })
+      .eq('username', 'edoardo');
+
+    if (error) {
+      console.error('Error updating admin password:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-white shadow">
@@ -298,7 +309,10 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
         {activeTab === 'utenti' && (
           <div className="px-4 py-6 sm:px-0">
             <div className="border-4 border-dashed border-gray-200 rounded-lg p-4">
-              <UserManagement />
+              <UserManagement 
+                currentUser={username}
+                onAdminPasswordChange={handleAdminPasswordChange}
+              />
             </div>
           </div>
         )}
