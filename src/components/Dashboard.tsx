@@ -116,12 +116,12 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     loadEntries();
   }, []);
 
-  // Imposta il polling ogni 5 secondi
+  // Imposta il polling ogni 3 secondi
   useEffect(() => {
     const interval = setInterval(() => {
       loadSuppliers();
       loadEntries();
-    }, 5000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, []);
