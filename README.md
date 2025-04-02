@@ -1,3 +1,49 @@
+# Gestione Fornitori
+
+Applicazione per la gestione dei fornitori e delle spese.
+
+## Istruzioni per il Deploy su Vercel
+
+### Metodo 1: Deploy Tramite CLI
+
+1. Installare Vercel CLI:
+   ```bash
+   npm install -g vercel
+   ```
+
+2. Accedere a Vercel:
+   ```bash
+   vercel login
+   ```
+
+3. Eseguire il deploy:
+   ```bash
+   vercel --prod -e NEXT_PUBLIC_SUPABASE_URL=https://goniakzrtvzczdainfkf.supabase.co -e NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdvbmlha3pydHZ6Y3pkYWluZmtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1MDk3MTIsImV4cCI6MjA1OTA4NTcxMn0.uXXHBXoJCtVoSxNxeFsVppi_uQyo2lqZXm5uKvGBs3A
+   ```
+
+### Metodo 2: Deploy Tramite Interfaccia Web Vercel
+
+1. Vai su [Vercel](https://vercel.com) e accedi al tuo account
+2. Clicca su "Add New Project"
+3. Importa il repository dalla piattaforma Git (GitHub, GitLab, ecc.) o carica la cartella del progetto
+4. Configura le variabili d'ambiente:
+   - `NEXT_PUBLIC_SUPABASE_URL`: `https://goniakzrtvzczdainfkf.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdvbmlha3pydHZ6Y3pkYWluZmtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1MDk3MTIsImV4cCI6MjA1OTA4NTcxMn0.uXXHBXoJCtVoSxNxeFsVppi_uQyo2lqZXm5uKvGBs3A`
+5. Clicca su "Deploy"
+
+## Credenziali di Accesso
+
+- Username: `edoardo`
+- Password: `edoardO2024`
+
+## Funzionalità
+
+- Gestione dei fornitori
+- Registrazione e modifica delle spese
+- Visualizzazione delle spese per fornitore e periodo
+- Esportazione dei dati in Excel
+- Cambio anno di visualizzazione
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
