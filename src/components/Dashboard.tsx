@@ -152,31 +152,23 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
         return;
       }
 
-      const updatedEntry = {
-        ...entryData,
-        id: editingEntry.id
-      };
-
-      const updatedEntries = entries.map(e => e.id === editingEntry.id ? updatedEntry : e);
-      setEntries(updatedEntries);
+      // Ricarica i dati dopo la modifica
+      loadEntries();
       setEditingEntry(null);
     } else {
       // Aggiunta di una nuova spesa
-      const newEntry = {
-        ...entryData,
-        id: crypto.randomUUID()
-      };
-
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('entries')
-        .insert([newEntry]);
+        .insert([entryData])
+        .select();
 
       if (error) {
         console.error('Error inserting entry:', error);
         return;
       }
 
-      setEntries([...entries, newEntry]);
+      // Ricarica i dati dopo l'inserimento
+      loadEntries();
     }
   };
 
@@ -191,8 +183,8 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
       return;
     }
 
-    const updatedEntries = entries.filter(entry => entry.id !== entryToDelete.id);
-    setEntries(updatedEntries);
+    // Ricarica i dati dopo l'eliminazione
+    loadEntries();
   };
 
   const handleEditEntry = (entry: Entry) => {
@@ -205,23 +197,24 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
   };
 
   const handleSupplierUpdate = async (updatedSuppliers: Supplier[]) => {
-    // Assicurati che ogni fornitore abbia un ID
-    const suppliersWithIds = updatedSuppliers.map(supplier => ({
+    // Rimuovi gli ID dai nuovi fornitori per far generare gli ID da Supabase
+    const suppliersToUpsert = updatedSuppliers.map(supplier => ({
       ...supplier,
-      id: supplier.id || crypto.randomUUID()
+      id: supplier.id || undefined
     }));
 
     // Aggiorna i fornitori su Supabase
     const { error } = await supabase
       .from('suppliers')
-      .upsert(suppliersWithIds);
+      .upsert(suppliersToUpsert);
 
     if (error) {
       console.error('Error updating suppliers:', error);
       return;
     }
 
-    setSuppliers(suppliersWithIds);
+    // Ricarica i dati dopo l'aggiornamento
+    loadSuppliers();
   };
 
   return (
