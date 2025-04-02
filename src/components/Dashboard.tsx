@@ -57,6 +57,11 @@ const DEFAULT_SUPPLIERS: Supplier[] = [
   }
 ];
 
+// Funzione per generare un ID univoco
+const generateUniqueId = () => {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+};
+
 export default function Dashboard({ initialYear, username }: DashboardProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'spese' | 'fornitori' | 'utenti'>('spese');
@@ -157,10 +162,14 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
       setEditingEntry(null);
     } else {
       // Aggiunta di una nuova spesa
-      const { data, error } = await supabase
+      const newEntry = {
+        ...entryData,
+        id: generateUniqueId()
+      };
+
+      const { error } = await supabase
         .from('entries')
-        .insert([entryData])
-        .select();
+        .insert([newEntry]);
 
       if (error) {
         console.error('Error inserting entry:', error);
@@ -197,16 +206,16 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
   };
 
   const handleSupplierUpdate = async (updatedSuppliers: Supplier[]) => {
-    // Rimuovi gli ID dai nuovi fornitori per far generare gli ID da Supabase
-    const suppliersToUpsert = updatedSuppliers.map(supplier => ({
+    // Assicurati che ogni fornitore abbia un ID
+    const suppliersWithIds = updatedSuppliers.map(supplier => ({
       ...supplier,
-      id: supplier.id || undefined
+      id: supplier.id || generateUniqueId()
     }));
 
     // Aggiorna i fornitori su Supabase
     const { error } = await supabase
       .from('suppliers')
-      .upsert(suppliersToUpsert);
+      .upsert(suppliersWithIds);
 
     if (error) {
       console.error('Error updating suppliers:', error);
