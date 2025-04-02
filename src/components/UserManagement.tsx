@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 type User = {
   id: string;
@@ -78,7 +79,7 @@ export default function UserManagement({ currentUser, onAdminPasswordChange }: U
     setError('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -88,21 +89,37 @@ export default function UserManagement({ currentUser, onAdminPasswordChange }: U
       return;
     }
 
-    // Verifica la password corrente (usa quella memorizzata nel localStorage)
-    const storedPassword = localStorage.getItem('adminPassword');
-    if (currentPassword !== storedPassword) {
-      setError('Password corrente non valida');
-      return;
-    }
+    try {
+      // Verifica la password corrente
+      const { data: user, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', 'edoardo')
+        .single();
 
-    // Aggiorna la password
-    localStorage.setItem('adminPassword', newPassword);
-    setSuccess('Password aggiornata con successo');
-    
-    // Pulisci i campi
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
+      if (fetchError || !user || user.password !== currentPassword) {
+        setError('Password corrente non valida');
+        return;
+      }
+
+      // Aggiorna la password
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ password: newPassword })
+        .eq('username', 'edoardo');
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setSuccess('Password aggiornata con successo');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      console.error('Error:', error);
+      setError('Si è verificato un errore durante l\'aggiornamento della password');
+    }
   };
 
   return (

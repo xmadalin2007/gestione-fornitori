@@ -1,68 +1,37 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import SupplierForm from '@/components/SupplierForm';
 import SupplierTable from '@/components/SupplierTable';
 import SupplierManagement from '@/components/SupplierManagement';
 import UserManagement from '@/components/UserManagement';
 import ExportData from '@/components/ExportData';
 import { useRouter } from 'next/navigation';
-import type { Supplier, Entry } from '@/types';
-import { createClient } from '@supabase/supabase-js';
-import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import type { Supplier } from '@/components/SupplierManagement';
+import { supabase } from '@/lib/supabase';
+
+export type Entry = {
+  id: string;
+  date: string;
+  supplierId: string;
+  amount: number;
+  description: string;
+  paymentMethod: 'contanti' | 'bonifico';
+};
 
 interface DashboardProps {
   initialYear: string;
   username: string;
 }
 
-const DEFAULT_SUPPLIERS: Supplier[] = [
-  {
-    id: '1',
-    name: 'Fornitore 1',
-    defaultPaymentMethod: 'contanti'
-  },
-  {
-    id: '2',
-    name: 'Fornitore 2',
-    defaultPaymentMethod: 'bonifico'
-  },
-  {
-    id: '3',
-    name: 'Fornitore 3',
-    defaultPaymentMethod: 'contanti'
-  },
-  {
-    id: '4',
-    name: 'Fornitore 4',
-    defaultPaymentMethod: 'bonifico'
-  },
-  {
-    id: '5',
-    name: 'Fornitore 5',
-    defaultPaymentMethod: 'contanti'
-  },
-  {
-    id: '6',
-    name: 'Fornitore 6',
-    defaultPaymentMethod: 'bonifico'
-  }
-];
-
-// Funzione per generare un ID univoco
-const generateUniqueId = () => {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
-};
-
 export default function Dashboard({ initialYear, username }: DashboardProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'spese' | 'fornitori' | 'utenti'>('spese');
-  const [suppliers, setSuppliers] = useState<Supplier[]>(DEFAULT_SUPPLIERS);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>(initialYear);
-  const [years, setYears] = useState<string[]>(() => {
+  const [years] = useState<string[]>(() => {
     const currentYear = new Date().getFullYear();
     const years = [];
     for (let year = currentYear; year >= 2024; year--) {
@@ -71,77 +40,71 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     return years;
   });
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   // Carica i fornitori da Supabase
-  const loadSuppliers = async () => {
-    const { data, error } = await supabase
-      .from('suppliers')
-      .select('*');
-    
-    if (error) {
-      console.error('Error loading suppliers:', error);
-      return;
-    }
+  useEffect(() => {
+    const loadSuppliers = async () => {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('*')
+        .order('name');
+      
+      if (error) {
+        console.error('Error loading suppliers:', error);
+        return;
+      }
 
-    if (data && data.length > 0) {
-      setSuppliers(data);
-    }
-  };
+      setSuppliers(data.map(supplier => ({
+        id: supplier.id,
+        name: supplier.name,
+        defaultPaymentMethod: supplier.default_payment_method
+      })));
+    };
+
+    loadSuppliers();
+  }, []);
 
   // Carica le spese da Supabase
-  const loadEntries = async () => {
-    const { data, error } = await supabase
-      .from('entries')
-      .select('*');
-    
-    if (error) {
-      console.error('Error loading entries:', error);
-      return;
-    }
-
-    if (data) {
-      setEntries(data);
-    }
-  };
-
-  // Carica i dati iniziali
   useEffect(() => {
-    loadSuppliers();
+    const loadEntries = async () => {
+      const { data, error } = await supabase
+        .from('entries')
+        .select('*')
+        .order('date', { ascending: false });
+      
+      if (error) {
+        console.error('Error loading entries:', error);
+        return;
+      }
+
+      setEntries(data.map(entry => ({
+        id: entry.id,
+        date: entry.date,
+        supplierId: entry.supplier_id,
+        amount: entry.amount,
+        description: entry.description,
+        paymentMethod: entry.payment_method
+      })));
+    };
+
     loadEntries();
   }, []);
 
-  // Imposta il polling ogni 3 secondi
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadSuppliers();
-      loadEntries();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('isLoggedIn');
-      router.push('/');
-    }
+    localStorage.removeItem('isLoggedIn');
+    router.push('/');
   };
 
-  const handleNewEntry = async (entryData: Omit<Entry, 'id'>) => {
+  const handleNewEntry = async (entry: Entry) => {
     if (editingEntry) {
       // Modifica di una spesa esistente
       const { error } = await supabase
         .from('entries')
         .update({
-          date: entryData.date,
-          amount: entryData.amount,
-          description: entryData.description,
-          supplierId: entryData.supplierId,
-          paymentMethod: entryData.paymentMethod
+          date: entry.date,
+          supplier_id: entry.supplierId,
+          amount: entry.amount,
+          description: entry.description,
+          payment_method: entry.paymentMethod
         })
         .eq('id', editingEntry.id);
 
@@ -150,23 +113,40 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
         return;
       }
 
-      // Ricarica i dati dopo la modifica
-      loadEntries();
+      const updatedEntries = entries.map(e => 
+        e.id === editingEntry.id ? entry : e
+      );
+      setEntries(updatedEntries);
       setEditingEntry(null);
     } else {
       // Aggiunta di una nuova spesa
       const { data, error } = await supabase
         .from('entries')
-        .insert([entryData])
-        .select();
+        .insert([{
+          date: entry.date,
+          supplier_id: entry.supplierId,
+          amount: entry.amount,
+          description: entry.description,
+          payment_method: entry.paymentMethod
+        }])
+        .select()
+        .single();
 
       if (error) {
-        console.error('Error inserting entry:', error);
+        console.error('Error creating entry:', error);
         return;
       }
 
-      // Ricarica i dati dopo l'inserimento
-      loadEntries();
+      const newEntry = {
+        id: data.id,
+        date: data.date,
+        supplierId: data.supplier_id,
+        amount: data.amount,
+        description: data.description,
+        paymentMethod: data.payment_method
+      };
+
+      setEntries([newEntry, ...entries]);
     }
   };
 
@@ -181,8 +161,8 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
       return;
     }
 
-    // Ricarica i dati dopo l'eliminazione
-    loadEntries();
+    const updatedEntries = entries.filter(entry => entry.id !== entryToDelete.id);
+    setEntries(updatedEntries);
   };
 
   const handleEditEntry = (entry: Entry) => {
@@ -196,24 +176,22 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
 
   const handleSupplierUpdate = async (updatedSuppliers: Supplier[]) => {
     // Aggiorna i fornitori su Supabase
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('suppliers')
-      .upsert(updatedSuppliers)
-      .select();
+      .upsert(
+        updatedSuppliers.map(supplier => ({
+          id: supplier.id,
+          name: supplier.name,
+          default_payment_method: supplier.defaultPaymentMethod
+        }))
+      );
 
     if (error) {
       console.error('Error updating suppliers:', error);
       return;
     }
 
-    // Aggiorna lo stato locale con i dati restituiti da Supabase
-    if (data) {
-      setSuppliers(data);
-    }
-  };
-
-  const handleAdminPasswordChange = (newPassword: string) => {
-    localStorage.setItem('adminPassword', newPassword);
+    setSuppliers(updatedSuppliers);
   };
 
   return (
@@ -227,7 +205,7 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
                   onClick={() => setActiveTab('spese')}
                   className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                     activeTab === 'spese'
-                      ? 'border-blue-500 text-gray-900'
+                      ? 'border-indigo-500 text-gray-900'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
@@ -237,7 +215,7 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
                   onClick={() => setActiveTab('fornitori')}
                   className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                     activeTab === 'fornitori'
-                      ? 'border-blue-500 text-gray-900'
+                      ? 'border-indigo-500 text-gray-900'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
@@ -247,7 +225,7 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
                   onClick={() => setActiveTab('utenti')}
                   className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                     activeTab === 'utenti'
-                      ? 'border-blue-500 text-gray-900'
+                      ? 'border-indigo-500 text-gray-900'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
@@ -259,7 +237,7 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
-                className="block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                className="block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
               >
                 {years.map(year => (
                   <option key={year} value={year}>{year}</option>
@@ -267,14 +245,14 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
               </select>
               
               <ExportData 
-                entries={entries} 
+                entries={entries.filter(entry => entry.date.startsWith(selectedYear))}
                 suppliers={suppliers}
                 selectedYear={selectedYear}
               />
 
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 Logout
               </button>
@@ -286,40 +264,22 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {activeTab === 'spese' && (
           <div className="px-4 py-6 sm:px-0">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-semibold text-gray-900">
-                Gestione Spese {selectedYear}
-              </h1>
-              <div className="flex space-x-4">
-                <UserManagement currentUser={username} onAdminPasswordChange={handleAdminPasswordChange} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <div>
-                <SupplierForm
-                  suppliers={suppliers}
-                  onSubmit={handleNewEntry}
-                  editingEntry={editingEntry}
-                  onCancelEdit={handleCancelEdit}
-                  selectedYear={selectedYear}
-                />
-              </div>
-              <div>
-                <SupplierManagement
-                  suppliers={suppliers}
-                  onUpdateSuppliers={handleSupplierUpdate}
-                />
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <SupplierTable
-                entries={entries}
+            <div className="border-4 border-dashed border-gray-200 rounded-lg p-4">
+              <SupplierForm
                 suppliers={suppliers}
-                onEditEntry={handleEditEntry}
-                onDeleteEntry={handleDeleteEntry}
+                onSubmit={handleNewEntry}
+                editingEntry={editingEntry}
+                onCancelEdit={handleCancelEdit}
+                selectedYear={selectedYear}
               />
+              <div className="mt-8">
+                <SupplierTable
+                  entries={entries.filter(entry => entry.date.startsWith(selectedYear))}
+                  suppliers={suppliers}
+                  onDeleteEntry={handleDeleteEntry}
+                  onEditEntry={handleEditEntry}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -338,10 +298,7 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
         {activeTab === 'utenti' && (
           <div className="px-4 py-6 sm:px-0">
             <div className="border-4 border-dashed border-gray-200 rounded-lg p-4">
-              <UserManagement 
-                currentUser={username}
-                onAdminPasswordChange={handleAdminPasswordChange}
-              />
+              <UserManagement />
             </div>
           </div>
         )}

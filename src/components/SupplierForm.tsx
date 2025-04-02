@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import type { Supplier, Entry } from '@/types';
+import type { Supplier } from './SupplierManagement';
+import type { Entry } from '@/components/Dashboard';
 
-interface SupplierFormProps {
+type SupplierFormProps = {
   suppliers: Supplier[];
   onSubmit: (entry: Entry) => void;
   editingEntry: Entry | null;
   onCancelEdit: () => void;
   selectedYear: string;
-}
+};
 
 export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCancelEdit, selectedYear }: SupplierFormProps) {
   const today = new Date();
@@ -49,7 +50,8 @@ export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCanc
     const [day, month, year] = date.split('-');
     const isoDate = `${year}-${month}-${day}`;
 
-    const newEntry: Omit<Entry, 'id'> = {
+    const newEntry: Entry = {
+      id: Math.random().toString(36).substr(2, 9),
       date: isoDate,
       amount: parseFloat(amount),
       description: description,
@@ -57,7 +59,7 @@ export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCanc
       paymentMethod
     };
 
-    onSubmit(newEntry as Entry);
+    onSubmit(newEntry);
 
     // Reset form solo se non stiamo modificando
     if (!editingEntry) {
@@ -66,6 +68,19 @@ export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCanc
       setDescription('');
       setPaymentMethod('contanti');
     }
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isoDate = e.target.value; // formato yyyy-mm-dd
+    const [year, month, day] = isoDate.split('-');
+    const italianDate = `${day}-${month}-${year}`;
+    setDate(italianDate);
+  };
+
+  // Converti la data dal formato italiano (dd-mm-yyyy) al formato ISO (yyyy-mm-dd) per l'input
+  const getISODate = () => {
+    const [day, month, year] = date.split('-');
+    return `${year}-${month}-${day}`;
   };
 
   return (
@@ -79,7 +94,13 @@ export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCanc
             <select
               id="supplier"
               value={supplierId}
-              onChange={(e) => setSupplierId(e.target.value)}
+              onChange={(e) => {
+                setSupplierId(e.target.value);
+                const supplier = suppliers.find(s => s.id === e.target.value);
+                if (supplier) {
+                  setPaymentMethod(supplier.defaultPaymentMethod);
+                }
+              }}
               className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
               required
             >
@@ -99,8 +120,8 @@ export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCanc
             <input
               type="date"
               id="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
+              value={getISODate()}
+              onChange={handleDateChange}
               className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
               required
             />
@@ -110,28 +131,22 @@ export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCanc
             <label htmlFor="amount" className="block text-sm font-medium text-gray-700">
               Importo
             </label>
-            <input
-              type="text"
-              id="amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-              required
-            />
-          </div>
-
-          <div className="sm:col-span-1">
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-              Descrizione
-            </label>
-            <input
-              type="text"
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-              required
-            />
+            <div className="mt-1 relative rounded-md shadow-sm">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span className="text-gray-500 sm:text-sm">€</span>
+              </div>
+              <input
+                type="number"
+                id="amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                required
+              />
+            </div>
           </div>
 
           <div className="sm:col-span-1">
@@ -149,13 +164,44 @@ export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCanc
             </select>
           </div>
 
+          <div className="sm:col-span-1">
+            <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+              Descrizione
+            </label>
+            <input
+              type="text"
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+            />
+          </div>
+
           <div className="sm:col-span-1 flex items-end space-x-2">
-            <button
-              type="submit"
-              className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Salva
-            </button>
+            {editingEntry ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onCancelEdit}
+                  className="w-1/2 inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Salva
+                </button>
+              </>
+            ) : (
+              <button
+                type="submit"
+                className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Aggiungi
+              </button>
+            )}
           </div>
         </div>
       </form>
