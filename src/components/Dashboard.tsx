@@ -157,9 +157,14 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
       setEditingEntry(null);
     } else {
       // Aggiunta di una nuova spesa
+      const newEntry = {
+        ...entry,
+        id: crypto.randomUUID() // Genera un ID univoco
+      };
+
       const { data, error } = await supabase
         .from('entries')
-        .insert([entry])
+        .insert([newEntry])
         .select();
 
       if (error) {
@@ -198,17 +203,23 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
   };
 
   const handleSupplierUpdate = async (updatedSuppliers: Supplier[]) => {
+    // Assicurati che ogni fornitore abbia un ID
+    const suppliersWithIds = updatedSuppliers.map(supplier => ({
+      ...supplier,
+      id: supplier.id || crypto.randomUUID()
+    }));
+
     // Aggiorna i fornitori su Supabase
     const { error } = await supabase
       .from('suppliers')
-      .upsert(updatedSuppliers);
+      .upsert(suppliersWithIds);
 
     if (error) {
       console.error('Error updating suppliers:', error);
       return;
     }
 
-    setSuppliers(updatedSuppliers);
+    setSuppliers(suppliersWithIds);
   };
 
   return (
