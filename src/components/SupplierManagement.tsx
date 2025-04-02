@@ -1,17 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import type { Supplier } from '@/components/Dashboard';
 
-export type Supplier = {
-  id: string;
-  name: string;
-  defaultPaymentMethod: 'contanti' | 'bonifico';
-};
-
-type SupplierManagementProps = {
+interface SupplierManagementProps {
   suppliers: Supplier[];
   onUpdateSuppliers: (suppliers: Supplier[]) => void;
-};
+}
 
 export default function SupplierManagement({ suppliers, onUpdateSuppliers }: SupplierManagementProps) {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -23,32 +18,21 @@ export default function SupplierManagement({ suppliers, onUpdateSuppliers }: Sup
     e.preventDefault();
     setError('');
 
-    // Verifica che non ci siano fornitori con lo stesso nome (escluso quello in modifica)
-    const isDuplicate = suppliers.some(
-      supplier => 
-        supplier.name.toLowerCase() === name.toLowerCase() && 
-        (!editingSupplier || supplier.id !== editingSupplier.id)
-    );
-
-    if (isDuplicate) {
-      setError('Esiste già un fornitore con questo nome');
-      return;
-    }
-
     if (editingSupplier) {
       // Modifica fornitore esistente
-      const updatedSuppliers = suppliers.map(supplier =>
-        supplier.id === editingSupplier.id
-          ? { ...supplier, name, defaultPaymentMethod }
-          : supplier
+      const updatedSuppliers = suppliers.map(s => 
+        s.id === editingSupplier.id 
+          ? { ...s, name, defaultPaymentMethod }
+          : s
       );
       onUpdateSuppliers(updatedSuppliers);
+      setEditingSupplier(null);
     } else {
       // Aggiungi nuovo fornitore
       const newSupplier: Supplier = {
-        id: Math.random().toString(36).substr(2, 9),
         name,
-        defaultPaymentMethod
+        defaultPaymentMethod,
+        id: crypto.randomUUID() // Generiamo un ID temporaneo
       };
       onUpdateSuppliers([...suppliers, newSupplier]);
     }
@@ -56,7 +40,6 @@ export default function SupplierManagement({ suppliers, onUpdateSuppliers }: Sup
     // Reset form
     setName('');
     setDefaultPaymentMethod('contanti');
-    setEditingSupplier(null);
   };
 
   const handleEdit = (supplier: Supplier) => {
@@ -66,104 +49,99 @@ export default function SupplierManagement({ suppliers, onUpdateSuppliers }: Sup
   };
 
   const handleDelete = (supplierId: string) => {
-    const updatedSuppliers = suppliers.filter(supplier => supplier.id !== supplierId);
+    const updatedSuppliers = suppliers.filter(s => s.id !== supplierId);
     onUpdateSuppliers(updatedSuppliers);
   };
 
-  const handleCancel = () => {
-    setEditingSupplier(null);
-    setName('');
-    setDefaultPaymentMethod('contanti');
-    setError('');
-  };
-
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-            Nome Fornitore
-          </label>
-          <input
-            type="text"
-            id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            required
-          />
-        </div>
+    <div className="bg-white shadow sm:rounded-lg">
+      <div className="px-4 py-5 sm:p-6">
+        <h3 className="text-lg leading-6 font-medium text-gray-900">
+          Gestione Fornitori
+        </h3>
+        <div className="mt-5">
+          <form onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+              <div className="sm:col-span-4">
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                  Nome
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  required
+                />
+              </div>
 
-        <div>
-          <label htmlFor="defaultPaymentMethod" className="block text-sm font-medium text-gray-700">
-            Metodo di Pagamento Predefinito
-          </label>
-          <select
-            id="defaultPaymentMethod"
-            value={defaultPaymentMethod}
-            onChange={(e) => setDefaultPaymentMethod(e.target.value as 'contanti' | 'bonifico')}
-            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-          >
-            <option value="contanti">Contanti</option>
-            <option value="bonifico">Bonifico</option>
-          </select>
-        </div>
+              <div className="sm:col-span-2">
+                <label htmlFor="defaultPaymentMethod" className="block text-sm font-medium text-gray-700">
+                  Metodo di Pagamento Predefinito
+                </label>
+                <select
+                  id="defaultPaymentMethod"
+                  value={defaultPaymentMethod}
+                  onChange={(e) => setDefaultPaymentMethod(e.target.value as 'contanti' | 'bonifico')}
+                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                >
+                  <option value="contanti">Contanti</option>
+                  <option value="bonifico">Bonifico</option>
+                </select>
+              </div>
 
-        {error && (
-          <div className="text-red-600 text-sm">
-            {error}
-          </div>
-        )}
+              {error && (
+                <div className="sm:col-span-6">
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              )}
 
-        <div className="flex space-x-2">
-          <button
-            type="submit"
-            className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            {editingSupplier ? 'Salva Modifiche' : 'Aggiungi Fornitore'}
-          </button>
-          {editingSupplier && (
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Annulla
-            </button>
-          )}
-        </div>
-      </form>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {suppliers.map((supplier) => (
-          <div
-            key={supplier.id}
-            className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400"
-          >
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900">
-                {supplier.name}
-              </p>
-              <p className="text-sm text-gray-500">
-                {supplier.defaultPaymentMethod === 'contanti' ? 'Contanti' : 'Bonifico'}
-              </p>
+              <div className="sm:col-span-6">
+                <button
+                  type="submit"
+                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  {editingSupplier ? 'Modifica' : 'Aggiungi'} Fornitore
+                </button>
+              </div>
             </div>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => handleEdit(supplier)}
-                className="text-blue-600 hover:text-blue-900"
-              >
-                Modifica
-              </button>
-              <button
-                onClick={() => handleDelete(supplier.id)}
-                className="text-red-600 hover:text-red-900"
-              >
-                Elimina
-              </button>
+          </form>
+
+          <div className="mt-8">
+            <h4 className="text-sm font-medium text-gray-900">Fornitori Esistenti</h4>
+            <div className="mt-4">
+              <ul className="divide-y divide-gray-200">
+                {suppliers.map((supplier) => (
+                  <li key={supplier.id} className="py-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{supplier.name}</p>
+                      <p className="text-sm text-gray-500">
+                        Pagamento: {supplier.defaultPaymentMethod === 'contanti' ? 'Contanti' : 'Bonifico'}
+                      </p>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(supplier)}
+                        className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        Modifica
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(supplier.id)}
+                        className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                      >
+                        Elimina
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );

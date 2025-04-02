@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import SupplierForm from '@/components/SupplierForm';
 import SupplierTable from '@/components/SupplierTable';
 import SupplierManagement from '@/components/SupplierManagement';
@@ -9,6 +9,8 @@ import ExportData from '@/components/ExportData';
 import { useRouter } from 'next/navigation';
 import type { Supplier } from '@/components/SupplierManagement';
 import { createClient } from '@supabase/supabase-js';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 
 export type Entry = {
   id?: string;  // ID opzionale per le nuove spese
@@ -203,17 +205,24 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
 
   const handleSupplierUpdate = async (updatedSuppliers: Supplier[]) => {
     // Aggiorna i fornitori su Supabase
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('suppliers')
-      .upsert(updatedSuppliers);
+      .upsert(updatedSuppliers)
+      .select();
 
     if (error) {
       console.error('Error updating suppliers:', error);
       return;
     }
 
-    // Ricarica i dati dopo l'aggiornamento
-    loadSuppliers();
+    // Aggiorna lo stato locale con i dati restituiti da Supabase
+    if (data) {
+      setSuppliers(data);
+    }
+  };
+
+  const handleAdminPasswordChange = (newPassword: string) => {
+    localStorage.setItem('adminPassword', newPassword);
   };
 
   return (
@@ -286,22 +295,40 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {activeTab === 'spese' && (
           <div className="px-4 py-6 sm:px-0">
-            <div className="border-4 border-dashed border-gray-200 rounded-lg p-4">
-              <SupplierForm
-                suppliers={suppliers}
-                onSubmit={handleNewEntry}
-                editingEntry={editingEntry}
-                onCancelEdit={handleCancelEdit}
-                selectedYear={selectedYear}
-              />
-              <div className="mt-8">
-                <SupplierTable
-                  entries={entries.filter(entry => entry.date.startsWith(selectedYear))}
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Gestione Spese {selectedYear}
+              </h1>
+              <div className="flex space-x-4">
+                <UserManagement currentUser={username} onAdminPasswordChange={handleAdminPasswordChange} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div>
+                <SupplierForm
                   suppliers={suppliers}
-                  onDeleteEntry={handleDeleteEntry}
-                  onEditEntry={handleEditEntry}
+                  onSubmit={handleNewEntry}
+                  editingEntry={editingEntry}
+                  onCancelEdit={handleCancelEdit}
+                  selectedYear={selectedYear}
                 />
               </div>
+              <div>
+                <SupplierManagement
+                  suppliers={suppliers}
+                  onUpdateSuppliers={handleSupplierUpdate}
+                />
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <SupplierTable
+                entries={entries}
+                suppliers={suppliers}
+                onEditEntry={handleEditEntry}
+                onDeleteEntry={handleDeleteEntry}
+              />
             </div>
           </div>
         )}
@@ -322,9 +349,7 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
             <div className="border-4 border-dashed border-gray-200 rounded-lg p-4">
               <UserManagement 
                 currentUser={username}
-                onAdminPasswordChange={(newPassword: string) => {
-                  localStorage.setItem('adminPassword', newPassword);
-                }}
+                onAdminPasswordChange={handleAdminPasswordChange}
               />
             </div>
           </div>
