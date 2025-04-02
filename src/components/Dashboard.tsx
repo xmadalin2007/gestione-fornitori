@@ -133,48 +133,50 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     }
   };
 
-  const handleNewEntry = async (entry: Entry) => {
+  const handleNewEntry = async (entryData: Omit<Entry, 'id'>) => {
     if (editingEntry) {
       // Modifica di una spesa esistente
       const { error } = await supabase
         .from('entries')
         .update({
-          date: entry.date,
-          amount: entry.amount,
-          description: entry.description,
-          supplierId: entry.supplierId,
-          paymentMethod: entry.paymentMethod
+          date: entryData.date,
+          amount: entryData.amount,
+          description: entryData.description,
+          supplierId: entryData.supplierId,
+          paymentMethod: entryData.paymentMethod
         })
-        .eq('id', entry.id);
+        .eq('id', editingEntry.id);
 
       if (error) {
         console.error('Error updating entry:', error);
         return;
       }
 
-      const updatedEntries = entries.map(e => e.id === entry.id ? entry : e);
+      const updatedEntry = {
+        ...entryData,
+        id: editingEntry.id
+      };
+
+      const updatedEntries = entries.map(e => e.id === editingEntry.id ? updatedEntry : e);
       setEntries(updatedEntries);
       setEditingEntry(null);
     } else {
       // Aggiunta di una nuova spesa
       const newEntry = {
-        ...entry,
-        id: crypto.randomUUID() // Genera un ID univoco
+        ...entryData,
+        id: crypto.randomUUID()
       };
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('entries')
-        .insert([newEntry])
-        .select();
+        .insert([newEntry]);
 
       if (error) {
         console.error('Error inserting entry:', error);
         return;
       }
 
-      if (data) {
-        setEntries([...entries, data[0]]);
-      }
+      setEntries([...entries, newEntry]);
     }
   };
 

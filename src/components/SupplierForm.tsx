@@ -50,8 +50,7 @@ export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCanc
     const [day, month, year] = date.split('-');
     const isoDate = `${year}-${month}-${day}`;
 
-    const newEntry: Entry = {
-      id: Math.random().toString(36).substr(2, 9),
+    const newEntry: Omit<Entry, 'id'> = {
       date: isoDate,
       amount: parseFloat(amount),
       description: description,
@@ -59,7 +58,7 @@ export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCanc
       paymentMethod
     };
 
-    onSubmit(newEntry);
+    onSubmit(newEntry as Entry);
 
     // Reset form solo se non stiamo modificando
     if (!editingEntry) {
