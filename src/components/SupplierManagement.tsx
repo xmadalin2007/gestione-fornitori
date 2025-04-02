@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Supplier } from '@/components/Dashboard';
+import type { Supplier } from '@/types';
 
 interface SupplierManagementProps {
   suppliers: Supplier[];

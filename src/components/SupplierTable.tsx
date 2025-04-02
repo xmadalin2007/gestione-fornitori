@@ -1,15 +1,14 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { Supplier } from './SupplierManagement';
-import type { Entry } from '@/components/Dashboard';
+import type { Entry, Supplier } from '@/types';
 
-type SupplierTableProps = {
+interface SupplierTableProps {
   entries: Entry[];
   suppliers: Supplier[];
-  onDeleteEntry: (entry: Entry) => void;
   onEditEntry: (entry: Entry) => void;
-};
+  onDeleteEntry: (entry: Entry) => void;
+}
 
 export default function SupplierTable({ entries, suppliers, onDeleteEntry, onEditEntry }: SupplierTableProps) {
   // Raggruppa le spese per fornitore

@@ -7,19 +7,10 @@ import SupplierManagement from '@/components/SupplierManagement';
 import UserManagement from '@/components/UserManagement';
 import ExportData from '@/components/ExportData';
 import { useRouter } from 'next/navigation';
-import type { Supplier } from '@/components/SupplierManagement';
+import type { Supplier, Entry } from '@/types';
 import { createClient } from '@supabase/supabase-js';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-
-export type Entry = {
-  id?: string;  // ID opzionale per le nuove spese
-  date: string;
-  supplierId: string;
-  amount: number;
-  description: string;
-  paymentMethod: 'contanti' | 'bonifico';
-};
 
 interface DashboardProps {
   initialYear: string;
