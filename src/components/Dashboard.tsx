@@ -79,43 +79,51 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
   );
 
   // Carica i fornitori da Supabase
-  useEffect(() => {
-    async function loadSuppliers() {
-      const { data, error } = await supabase
-        .from('suppliers')
-        .select('*');
-      
-      if (error) {
-        console.error('Error loading suppliers:', error);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        setSuppliers(data);
-      }
+  const loadSuppliers = async () => {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('*');
+    
+    if (error) {
+      console.error('Error loading suppliers:', error);
+      return;
     }
 
-    loadSuppliers();
-  }, []);
+    if (data && data.length > 0) {
+      setSuppliers(data);
+    }
+  };
 
   // Carica le spese da Supabase
-  useEffect(() => {
-    async function loadEntries() {
-      const { data, error } = await supabase
-        .from('entries')
-        .select('*');
-      
-      if (error) {
-        console.error('Error loading entries:', error);
-        return;
-      }
-
-      if (data) {
-        setEntries(data);
-      }
+  const loadEntries = async () => {
+    const { data, error } = await supabase
+      .from('entries')
+      .select('*');
+    
+    if (error) {
+      console.error('Error loading entries:', error);
+      return;
     }
 
+    if (data) {
+      setEntries(data);
+    }
+  };
+
+  // Carica i dati iniziali
+  useEffect(() => {
+    loadSuppliers();
     loadEntries();
+  }, []);
+
+  // Imposta il polling ogni 5 secondi
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadSuppliers();
+      loadEntries();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = () => {
