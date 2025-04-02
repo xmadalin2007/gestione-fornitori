@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import React from 'react';
+import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 import type { Supplier } from './SupplierManagement';
-import type { Entry } from '@/app/dashboard/page';
+import type { Entry } from '@/components/Dashboard';
 
 type ExportDataProps = {
   entries: Entry[];
@@ -12,7 +13,7 @@ type ExportDataProps = {
 };
 
 export default function ExportData({ entries, suppliers, selectedYear }: ExportDataProps) {
-  const [showOptions, setShowOptions] = useState(false);
+  const [showOptions, setShowOptions] = React.useState(false);
 
   const formatDate = (isoDate: string) => {
     const [year, month, day] = isoDate.split('-');
