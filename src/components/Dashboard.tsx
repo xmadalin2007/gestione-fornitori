@@ -11,7 +11,7 @@ import type { Supplier } from '@/components/SupplierManagement';
 import { createClient } from '@supabase/supabase-js';
 
 export type Entry = {
-  id: string;
+  id?: string;  // ID opzionale per le nuove spese
   date: string;
   supplierId: string;
   amount: number;
@@ -162,14 +162,10 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
       setEditingEntry(null);
     } else {
       // Aggiunta di una nuova spesa
-      const newEntry = {
-        ...entryData,
-        id: generateUniqueId()
-      };
-
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('entries')
-        .insert([newEntry]);
+        .insert([entryData])
+        .select();
 
       if (error) {
         console.error('Error inserting entry:', error);
@@ -206,16 +202,10 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
   };
 
   const handleSupplierUpdate = async (updatedSuppliers: Supplier[]) => {
-    // Assicurati che ogni fornitore abbia un ID
-    const suppliersWithIds = updatedSuppliers.map(supplier => ({
-      ...supplier,
-      id: supplier.id || generateUniqueId()
-    }));
-
     // Aggiorna i fornitori su Supabase
     const { error } = await supabase
       .from('suppliers')
-      .upsert(suppliersWithIds);
+      .upsert(updatedSuppliers);
 
     if (error) {
       console.error('Error updating suppliers:', error);
