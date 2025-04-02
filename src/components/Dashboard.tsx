@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import SupplierForm from '@/components/SupplierForm';
 import SupplierTable from '@/components/SupplierTable';
 import SupplierManagement from '@/components/SupplierManagement';
@@ -8,6 +8,7 @@ import UserManagement from '@/components/UserManagement';
 import ExportData from '@/components/ExportData';
 import { useRouter } from 'next/navigation';
 import type { Supplier } from '@/components/SupplierManagement';
+import { createClient } from '@supabase/supabase-js';
 
 export type Entry = {
   id: string;
@@ -59,20 +60,8 @@ const DEFAULT_SUPPLIERS: Supplier[] = [
 export default function Dashboard({ initialYear, username }: DashboardProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'spese' | 'fornitori' | 'utenti'>('spese');
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    if (typeof window !== 'undefined') {
-      const savedSuppliers = localStorage.getItem('suppliers');
-      return savedSuppliers ? JSON.parse(savedSuppliers) : DEFAULT_SUPPLIERS;
-    }
-    return DEFAULT_SUPPLIERS;
-  });
-  const [entries, setEntries] = useState<Entry[]>(() => {
-    if (typeof window !== 'undefined') {
-      const savedEntries = localStorage.getItem('entries');
-      return savedEntries ? JSON.parse(savedEntries) : [];
-    }
-    return [];
-  });
+  const [suppliers, setSuppliers] = useState<Supplier[]>(DEFAULT_SUPPLIERS);
+  const [entries, setEntries] = useState<Entry[]>([]);
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>(initialYear);
   const [years, setYears] = useState<string[]>(() => {
@@ -84,6 +73,51 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     return years;
   });
 
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  // Carica i fornitori da Supabase
+  useEffect(() => {
+    async function loadSuppliers() {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('*');
+      
+      if (error) {
+        console.error('Error loading suppliers:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setSuppliers(data);
+      }
+    }
+
+    loadSuppliers();
+  }, []);
+
+  // Carica le spese da Supabase
+  useEffect(() => {
+    async function loadEntries() {
+      const { data, error } = await supabase
+        .from('entries')
+        .select('*');
+      
+      if (error) {
+        console.error('Error loading entries:', error);
+        return;
+      }
+
+      if (data) {
+        setEntries(data);
+      }
+    }
+
+    loadEntries();
+  }, []);
+
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('isLoggedIn');
@@ -91,37 +125,59 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     }
   };
 
-  const handleNewEntry = (entry: Entry) => {
+  const handleNewEntry = async (entry: Entry) => {
     if (editingEntry) {
       // Modifica di una spesa esistente
-      const updatedEntries = entries.map(e => 
-        e.date === editingEntry.date && 
-        e.supplierId === editingEntry.supplierId && 
-        e.amount === editingEntry.amount ? entry : e
-      );
+      const { error } = await supabase
+        .from('entries')
+        .update({
+          date: entry.date,
+          amount: entry.amount,
+          description: entry.description,
+          supplierId: entry.supplierId,
+          paymentMethod: entry.paymentMethod
+        })
+        .eq('id', entry.id);
+
+      if (error) {
+        console.error('Error updating entry:', error);
+        return;
+      }
+
+      const updatedEntries = entries.map(e => e.id === entry.id ? entry : e);
       setEntries(updatedEntries);
       setEditingEntry(null);
-      localStorage.setItem('entries', JSON.stringify(updatedEntries));
     } else {
       // Aggiunta di una nuova spesa
-      const newEntry = {
-        ...entry,
-        id: Math.random().toString(36).substr(2, 9)
-      };
-      const updatedEntries = [...entries, newEntry];
-      setEntries(updatedEntries);
-      localStorage.setItem('entries', JSON.stringify(updatedEntries));
+      const { data, error } = await supabase
+        .from('entries')
+        .insert([entry])
+        .select();
+
+      if (error) {
+        console.error('Error inserting entry:', error);
+        return;
+      }
+
+      if (data) {
+        setEntries([...entries, data[0]]);
+      }
     }
   };
 
-  const handleDeleteEntry = (entryToDelete: Entry) => {
-    const updatedEntries = entries.filter(entry => 
-      !(entry.date === entryToDelete.date && 
-        entry.supplierId === entryToDelete.supplierId && 
-        entry.amount === entryToDelete.amount)
-    );
+  const handleDeleteEntry = async (entryToDelete: Entry) => {
+    const { error } = await supabase
+      .from('entries')
+      .delete()
+      .eq('id', entryToDelete.id);
+
+    if (error) {
+      console.error('Error deleting entry:', error);
+      return;
+    }
+
+    const updatedEntries = entries.filter(entry => entry.id !== entryToDelete.id);
     setEntries(updatedEntries);
-    localStorage.setItem('entries', JSON.stringify(updatedEntries));
   };
 
   const handleEditEntry = (entry: Entry) => {
@@ -133,9 +189,18 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     setEditingEntry(null);
   };
 
-  const handleSupplierUpdate = (updatedSuppliers: Supplier[]) => {
+  const handleSupplierUpdate = async (updatedSuppliers: Supplier[]) => {
+    // Aggiorna i fornitori su Supabase
+    const { error } = await supabase
+      .from('suppliers')
+      .upsert(updatedSuppliers);
+
+    if (error) {
+      console.error('Error updating suppliers:', error);
+      return;
+    }
+
     setSuppliers(updatedSuppliers);
-    localStorage.setItem('suppliers', JSON.stringify(updatedSuppliers));
   };
 
   return (
