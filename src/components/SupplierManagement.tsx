@@ -2,18 +2,18 @@
 
 import { useState } from 'react';
 
-export type Supplier = {
+export interface Supplier {
   id: string;
   name: string;
   defaultPaymentMethod: 'contanti' | 'bonifico';
-};
+}
 
-type SupplierManagementProps = {
+export interface SupplierManagementProps {
   suppliers: Supplier[];
-  onUpdateSuppliers: (suppliers: Supplier[]) => void;
-};
+  onUpdate: (updatedSuppliers: Supplier[]) => Promise<void>;
+}
 
-export default function SupplierManagement({ suppliers, onUpdateSuppliers }: SupplierManagementProps) {
+export default function SupplierManagement({ suppliers, onUpdate }: SupplierManagementProps) {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [name, setName] = useState('');
   const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<'contanti' | 'bonifico'>('contanti');
@@ -42,7 +42,7 @@ export default function SupplierManagement({ suppliers, onUpdateSuppliers }: Sup
           ? { ...supplier, name, defaultPaymentMethod }
           : supplier
       );
-      onUpdateSuppliers(updatedSuppliers);
+      onUpdate(updatedSuppliers);
     } else {
       // Aggiungi nuovo fornitore
       const newSupplier: Supplier = {
@@ -50,7 +50,7 @@ export default function SupplierManagement({ suppliers, onUpdateSuppliers }: Sup
         name,
         defaultPaymentMethod
       };
-      onUpdateSuppliers([...suppliers, newSupplier]);
+      onUpdate([...suppliers, newSupplier]);
     }
 
     // Reset form
@@ -67,7 +67,7 @@ export default function SupplierManagement({ suppliers, onUpdateSuppliers }: Sup
 
   const handleDelete = (supplierId: string) => {
     const updatedSuppliers = suppliers.filter(supplier => supplier.id !== supplierId);
-    onUpdateSuppliers(updatedSuppliers);
+    onUpdate(updatedSuppliers);
   };
 
   const handleCancel = () => {

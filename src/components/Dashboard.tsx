@@ -8,26 +8,33 @@ import UserManagement from '@/components/UserManagement';
 import ExportData from '@/components/ExportData';
 import { useRouter } from 'next/navigation';
 import type { Supplier } from '@/components/SupplierManagement';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
-export type Entry = {
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
+
+export interface Entry {
   id: string;
   date: string;
   supplierId: string;
   amount: number;
   description: string;
   paymentMethod: 'contanti' | 'bonifico';
-};
+  year?: string;
+}
 
 interface DashboardProps {
   initialYear: string;
   username: string;
+  suppliers: Supplier[];
+  onUpdate?: () => void;
 }
 
-export default function Dashboard({ initialYear, username }: DashboardProps) {
+export default function Dashboard({ initialYear, username, suppliers, onUpdate }: DashboardProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'spese' | 'fornitori' | 'utenti'>('spese');
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>(initialYear);
@@ -39,75 +46,40 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     }
     return years;
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Carica i fornitori da Supabase
   useEffect(() => {
-    const loadSuppliers = async () => {
-      console.log('Caricamento fornitori...');
-      const { data, error } = await supabase
-        .from('suppliers')
-        .select('*')
-        .order('name');
-      
-      if (error) {
-        console.error('Errore caricamento fornitori:', error);
-        // Fallback su localStorage
-        const storedSuppliers = localStorage.getItem('suppliers');
-        if (storedSuppliers) {
-          setSuppliers(JSON.parse(storedSuppliers));
-        }
-        return;
-      }
-
-      console.log('Fornitori caricati:', data);
-      const formattedSuppliers = data.map(supplier => ({
-        id: supplier.id,
-        name: supplier.name,
-        defaultPaymentMethod: supplier.default_payment_method
-      }));
-
-      setSuppliers(formattedSuppliers);
-      localStorage.setItem('suppliers', JSON.stringify(formattedSuppliers));
-    };
-
-    loadSuppliers();
+    loadEntries();
   }, []);
 
-  // Carica le spese da Supabase
-  useEffect(() => {
-    const loadEntries = async () => {
-      console.log('Caricamento spese...');
-      const { data, error } = await supabase
+  const loadEntries = async () => {
+    try {
+      console.log('Caricamento spese da Supabase...');
+      const { data: entriesData, error: entriesError } = await supabase
         .from('entries')
         .select('*')
         .order('date', { ascending: false });
-      
-      if (error) {
-        console.error('Errore caricamento spese:', error);
-        // Fallback su localStorage
-        const storedEntries = localStorage.getItem('entries');
-        if (storedEntries) {
-          setEntries(JSON.parse(storedEntries));
-        }
-        return;
+
+      if (entriesError) {
+        throw entriesError;
       }
 
-      console.log('Spese caricate:', data);
-      const formattedEntries = data.map(entry => ({
-        id: entry.id,
-        date: entry.date,
-        supplierId: entry.supplier_id,
-        amount: entry.amount,
-        description: entry.description,
-        paymentMethod: entry.payment_method
-      }));
-
-      setEntries(formattedEntries);
-      localStorage.setItem('entries', JSON.stringify(formattedEntries));
-    };
-
-    loadEntries();
-  }, []);
+      console.log('Spese caricate:', entriesData);
+      setEntries(entriesData || []);
+      setLoading(false);
+    } catch (err) {
+      console.error('Errore nel caricamento delle spese:', err);
+      setError('Errore nel caricamento delle spese');
+      setLoading(false);
+      
+      // Fallback to localStorage
+      const storedEntries = localStorage.getItem('entries');
+      if (storedEntries) {
+        setEntries(JSON.parse(storedEntries));
+      }
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
@@ -116,115 +88,77 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
 
   const handleNewEntry = async (entry: Entry) => {
     try {
-      console.log('Salvataggio spesa:', entry);
+      const currentYear = new Date(entry.date).getFullYear().toString();
+      const entryWithYear = { ...entry, year: currentYear };
+      
       if (editingEntry) {
-        // Modifica di una spesa esistente
-        const updateData = {
-          date: entry.date,
-          supplier_id: entry.supplierId,
-          amount: entry.amount,
-          description: entry.description,
-          payment_method: entry.paymentMethod,
-          year: selectedYear
-        };
-        console.log('Aggiornamento spesa con dati:', updateData);
-        
-        const { error } = await supabase
+        console.log('Aggiornamento spesa esistente:', entryWithYear);
+        const { error: updateError } = await supabase
           .from('entries')
-          .update(updateData)
+          .update(entryWithYear)
           .eq('id', editingEntry.id);
 
-        if (error) {
-          console.error('Errore aggiornamento spesa:', error);
-          alert('Errore durante l\'aggiornamento della spesa: ' + error.message);
-          return;
+        if (updateError) {
+          throw updateError;
         }
 
-        const updatedEntries = entries.map(e => 
-          e.id === editingEntry.id ? entry : e
-        );
-        setEntries(updatedEntries);
-        localStorage.setItem('entries', JSON.stringify(updatedEntries));
-        setEditingEntry(null);
+        setEntries(entries.map(e => e.id === editingEntry.id ? entryWithYear : e));
       } else {
-        // Aggiunta di una nuova spesa
-        const insertData = {
-          date: entry.date,
-          supplier_id: entry.supplierId,
-          amount: entry.amount,
-          description: entry.description,
-          payment_method: entry.paymentMethod,
-          year: selectedYear
-        };
-        console.log('Inserimento nuova spesa con dati:', insertData);
-
-        const { data, error } = await supabase
+        console.log('Creazione nuova spesa:', entryWithYear);
+        const { data: newEntry, error: insertError } = await supabase
           .from('entries')
-          .insert([insertData])
+          .insert([entryWithYear])
           .select()
           .single();
 
-        if (error) {
-          console.error('Errore creazione spesa:', error);
-          alert('Errore durante la creazione della spesa: ' + error.message);
-          return;
+        if (insertError) {
+          throw insertError;
         }
 
-        if (!data) {
-          console.error('Nessun dato restituito dopo inserimento');
-          alert('Errore: nessun dato restituito dopo l\'inserimento');
-          return;
-        }
-
-        console.log('Spesa creata:', data);
-        const newEntry = {
-          id: data.id,
-          date: data.date,
-          supplierId: data.supplier_id,
-          amount: data.amount,
-          description: data.description,
-          paymentMethod: data.payment_method
-        };
-
-        const updatedEntries = [newEntry, ...entries];
-        setEntries(updatedEntries);
-        localStorage.setItem('entries', JSON.stringify(updatedEntries));
+        setEntries([newEntry, ...entries]);
       }
-    } catch (error) {
-      console.error('Errore in handleNewEntry:', error);
-      alert('Si è verificato un errore durante il salvataggio della spesa');
+
+      // Update localStorage as backup
+      localStorage.setItem('entries', JSON.stringify(entries));
+      
+      setEditingEntry(null);
+      if (onUpdate) {
+        onUpdate();
+      }
+    } catch (err) {
+      console.error('Errore nel salvare la spesa:', err);
+      alert('Errore nel salvare la spesa. Riprova.');
     }
   };
 
-  const handleDeleteEntry = async (entryToDelete: Entry) => {
+  const handleDelete = async (entry: Entry) => {
     try {
-      console.log('Eliminazione spesa:', entryToDelete);
-      const { error } = await supabase
+      const { error: deleteError } = await supabase
         .from('entries')
         .delete()
-        .eq('id', entryToDelete.id);
+        .eq('id', entry.id);
 
-      if (error) {
-        console.error('Errore eliminazione spesa:', error);
-        alert('Errore durante l\'eliminazione della spesa: ' + error.message);
-        return;
+      if (deleteError) {
+        throw deleteError;
       }
 
-      const updatedEntries = entries.filter(entry => entry.id !== entryToDelete.id);
-      setEntries(updatedEntries);
-      localStorage.setItem('entries', JSON.stringify(updatedEntries));
-    } catch (error) {
-      console.error('Errore in handleDeleteEntry:', error);
-      alert('Si è verificato un errore durante l\'eliminazione della spesa');
+      setEntries(entries.filter(e => e.id !== entry.id));
+      localStorage.setItem('entries', JSON.stringify(entries.filter(e => e.id !== entry.id)));
+      
+      if (onUpdate) {
+        onUpdate();
+      }
+    } catch (err) {
+      console.error('Errore nell\'eliminazione della spesa:', err);
+      alert('Errore nell\'eliminazione della spesa. Riprova.');
     }
   };
 
-  const handleEditEntry = (entry: Entry) => {
+  const handleEdit = (entry: Entry) => {
     setEditingEntry(entry);
-    setActiveTab('spese');
   };
 
-  const handleCancelEdit = () => {
+  const handleCancel = () => {
     setEditingEntry(null);
   };
 
@@ -245,8 +179,9 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
       return;
     }
 
-    setSuppliers(updatedSuppliers);
-    localStorage.setItem('suppliers', JSON.stringify(updatedSuppliers));
+    if (onUpdate) {
+      onUpdate();
+    }
   };
 
   const handleAdminPasswordChange = async (newPassword: string) => {
@@ -266,6 +201,14 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     );
     localStorage.setItem('users', JSON.stringify(updatedUsers));
   };
+
+  if (loading) {
+    return <div>Caricamento...</div>;
+  }
+
+  if (error) {
+    return <div>Errore: {error}</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -340,13 +283,13 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
               suppliers={suppliers}
               onSubmit={handleNewEntry}
               editingEntry={editingEntry}
-              onCancel={handleCancelEdit}
+              onCancel={handleCancel}
             />
             <SupplierTable
               entries={entries}
               suppliers={suppliers}
-              onEdit={handleEditEntry}
-              onDelete={handleDeleteEntry}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
             />
           </div>
         )}
