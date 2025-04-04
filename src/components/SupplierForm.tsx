@@ -12,28 +12,40 @@ interface SupplierFormProps {
 }
 
 export default function SupplierForm({
-  suppliers,
+  suppliers = [],
   onSubmit,
   editingEntry,
   onCancel
 }: SupplierFormProps) {
-  const [date, setDate] = useState(editingEntry?.date || new Date().toISOString().split('T')[0]);
-  const [supplierId, setSupplierId] = useState(editingEntry?.supplierId || '');
-  const [amount, setAmount] = useState(editingEntry?.amount?.toString() || '');
-  const [description, setDescription] = useState(editingEntry?.description || '');
+  const [date, setDate] = useState<string>(() => {
+    if (editingEntry?.date) return editingEntry.date;
+    return new Date().toISOString().split('T')[0];
+  });
+  
+  const [supplierId, setSupplierId] = useState<string>(() => {
+    if (editingEntry?.supplierId) return editingEntry.supplierId;
+    return suppliers[0]?.id || '';
+  });
+  
+  const [amount, setAmount] = useState<string>(() => {
+    if (editingEntry?.amount) return editingEntry.amount.toString();
+    return '';
+  });
+  
+  const [description, setDescription] = useState<string>(editingEntry?.description || '');
   const [paymentMethod, setPaymentMethod] = useState<'contanti' | 'bonifico'>(
     editingEntry?.paymentMethod || 'contanti'
   );
 
   useEffect(() => {
     if (editingEntry) {
-      setDate(editingEntry.date);
-      setSupplierId(editingEntry.supplierId);
-      setAmount(editingEntry.amount.toString());
-      setDescription(editingEntry.description);
-      setPaymentMethod(editingEntry.paymentMethod);
+      setDate(editingEntry.date || new Date().toISOString().split('T')[0]);
+      setSupplierId(editingEntry.supplierId || suppliers[0]?.id || '');
+      setAmount(editingEntry.amount?.toString() || '');
+      setDescription(editingEntry.description || '');
+      setPaymentMethod(editingEntry.paymentMethod || 'contanti');
     }
-  }, [editingEntry]);
+  }, [editingEntry, suppliers]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,13 +55,19 @@ export default function SupplierForm({
       return;
     }
 
+    if (!amount || isNaN(parseFloat(amount))) {
+      alert('Inserisci un importo valido');
+      return;
+    }
+
     const entry: Entry = {
-      id: editingEntry?.id || '',
+      id: editingEntry?.id || crypto.randomUUID(),
       date,
       supplierId,
       amount: parseFloat(amount),
       description,
-      paymentMethod
+      paymentMethod,
+      year: new Date(date).getFullYear().toString()
     };
 
     onSubmit(entry);
@@ -57,7 +75,7 @@ export default function SupplierForm({
     if (!editingEntry) {
       // Reset form only for new entries
       setDate(new Date().toISOString().split('T')[0]);
-      setSupplierId('');
+      setSupplierId(suppliers[0]?.id || '');
       setAmount('');
       setDescription('');
       setPaymentMethod('contanti');
@@ -93,7 +111,7 @@ export default function SupplierForm({
             required
           >
             <option value="">Seleziona un fornitore</option>
-            {suppliers.map((supplier) => (
+            {Array.isArray(suppliers) && suppliers.map((supplier) => (
               <option key={supplier.id} value={supplier.id}>
                 {supplier.name}
               </option>
@@ -111,6 +129,7 @@ export default function SupplierForm({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             step="0.01"
+            min="0"
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             required
           />

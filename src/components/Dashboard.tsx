@@ -15,13 +15,30 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Variabili d\'ambiente Supabase mancanti');
+  console.error('Variabili d\'ambiente Supabase mancanti:', {
+    url: supabaseUrl ? 'presente' : 'mancante',
+    key: supabaseAnonKey ? 'presente' : 'mancante'
+  });
 }
 
+// Test della connessione a Supabase
 const supabase = createClient(
   supabaseUrl || '',
   supabaseAnonKey || ''
 );
+
+// Test immediato della connessione
+console.log('Tentativo di connessione a Supabase...');
+supabase
+  .from('suppliers')
+  .select('count')
+  .then(({ data, error }) => {
+    if (error) {
+      console.error('Errore di connessione a Supabase:', error);
+    } else {
+      console.log('Connessione a Supabase riuscita, conteggio fornitori:', data);
+    }
+  });
 
 export interface Entry {
   id: string;
@@ -194,24 +211,38 @@ export default function Dashboard({ initialYear, username, suppliers, onUpdate }
   };
 
   const handleSupplierUpdate = async (updatedSuppliers: Supplier[]) => {
-    // Aggiorna i fornitori su Supabase
-    const { error } = await supabase
-      .from('suppliers')
-      .upsert(
-        updatedSuppliers.map(supplier => ({
-          id: supplier.id,
-          name: supplier.name,
-          default_payment_method: supplier.defaultPaymentMethod
-        }))
-      );
+    try {
+      console.log('Aggiornamento fornitori:', updatedSuppliers);
+      
+      // Salva in localStorage come backup
+      localStorage.setItem('suppliers', JSON.stringify(updatedSuppliers));
+      console.log('Fornitori salvati in localStorage');
 
-    if (error) {
-      console.error('Error updating suppliers:', error);
-      return;
-    }
+      // Aggiorna i fornitori su Supabase
+      const { error } = await supabase
+        .from('suppliers')
+        .upsert(
+          updatedSuppliers.map(supplier => ({
+            id: supplier.id,
+            name: supplier.name,
+            default_payment_method: supplier.defaultPaymentMethod
+          }))
+        );
 
-    if (onUpdate) {
-      onUpdate();
+      if (error) {
+        console.error('Errore nell\'aggiornamento dei fornitori su Supabase:', error);
+        alert('Errore nel salvare i fornitori su Supabase. I dati sono stati salvati localmente come backup.');
+        return;
+      }
+
+      console.log('Fornitori aggiornati con successo su Supabase');
+      
+      if (onUpdate) {
+        await onUpdate();
+      }
+    } catch (err) {
+      console.error('Errore imprevisto durante l\'aggiornamento dei fornitori:', err);
+      alert('Errore imprevisto durante il salvataggio. I dati sono stati salvati localmente come backup.');
     }
   };
 
