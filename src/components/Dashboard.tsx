@@ -8,6 +8,7 @@ import UserManagement from '@/components/UserManagement';
 import ExportData from '@/components/ExportData';
 import { useRouter } from 'next/navigation';
 import type { Supplier } from '@/components/SupplierManagement';
+import { supabase } from '@/lib/supabase';
 
 export type Entry = {
   id: string;
@@ -39,25 +40,66 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     return years;
   });
 
-  // Carica i fornitori dal localStorage
+  // Carica i fornitori da Supabase
   useEffect(() => {
-    const loadSuppliers = () => {
-      const storedSuppliers = localStorage.getItem('suppliers');
-      if (storedSuppliers) {
-        setSuppliers(JSON.parse(storedSuppliers));
+    const loadSuppliers = async () => {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('*')
+        .order('name');
+      
+      if (error) {
+        console.error('Error loading suppliers:', error);
+        // Fallback su localStorage
+        const storedSuppliers = localStorage.getItem('suppliers');
+        if (storedSuppliers) {
+          setSuppliers(JSON.parse(storedSuppliers));
+        }
+        return;
       }
+
+      const formattedSuppliers = data.map(supplier => ({
+        id: supplier.id,
+        name: supplier.name,
+        defaultPaymentMethod: supplier.default_payment_method
+      }));
+
+      setSuppliers(formattedSuppliers);
+      localStorage.setItem('suppliers', JSON.stringify(formattedSuppliers));
     };
 
     loadSuppliers();
   }, []);
 
-  // Carica le spese dal localStorage
+  // Carica le spese da Supabase
   useEffect(() => {
-    const loadEntries = () => {
-      const storedEntries = localStorage.getItem('entries');
-      if (storedEntries) {
-        setEntries(JSON.parse(storedEntries));
+    const loadEntries = async () => {
+      const { data, error } = await supabase
+        .from('entries')
+        .select('*')
+        .order('date', { ascending: false });
+      
+      if (error) {
+        console.error('Error loading entries:', error);
+        // Fallback su localStorage
+        const storedEntries = localStorage.getItem('entries');
+        if (storedEntries) {
+          setEntries(JSON.parse(storedEntries));
+        }
+        return;
       }
+
+      const formattedEntries = data.map(entry => ({
+        id: entry.id,
+        date: entry.date,
+        supplierId: entry.supplier_id,
+        amount: entry.amount,
+        description: entry.description,
+        paymentMethod: entry.payment_method
+      }));
+
+      setEntries(formattedEntries);
+      localStorage.setItem('entries', JSON.stringify(formattedEntries));
     };
 
     loadEntries();
@@ -68,9 +110,25 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     router.push('/');
   };
 
-  const handleNewEntry = (entry: Entry) => {
+  const handleNewEntry = async (entry: Entry) => {
     if (editingEntry) {
       // Modifica di una spesa esistente
+      const { error } = await supabase
+        .from('entries')
+        .update({
+          date: entry.date,
+          supplier_id: entry.supplierId,
+          amount: entry.amount,
+          description: entry.description,
+          payment_method: entry.paymentMethod
+        })
+        .eq('id', editingEntry.id);
+
+      if (error) {
+        console.error('Error updating entry:', error);
+        return;
+      }
+
       const updatedEntries = entries.map(e => 
         e.id === editingEntry.id ? entry : e
       );
@@ -79,9 +137,30 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
       setEditingEntry(null);
     } else {
       // Aggiunta di una nuova spesa
+      const { data, error } = await supabase
+        .from('entries')
+        .insert([{
+          date: entry.date,
+          supplier_id: entry.supplierId,
+          amount: entry.amount,
+          description: entry.description,
+          payment_method: entry.paymentMethod
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating entry:', error);
+        return;
+      }
+
       const newEntry = {
-        ...entry,
-        id: Math.random().toString(36).substr(2, 9)
+        id: data.id,
+        date: data.date,
+        supplierId: data.supplier_id,
+        amount: data.amount,
+        description: data.description,
+        paymentMethod: data.payment_method
       };
 
       const updatedEntries = [newEntry, ...entries];
@@ -90,7 +169,17 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     }
   };
 
-  const handleDeleteEntry = (entryToDelete: Entry) => {
+  const handleDeleteEntry = async (entryToDelete: Entry) => {
+    const { error } = await supabase
+      .from('entries')
+      .delete()
+      .eq('id', entryToDelete.id);
+
+    if (error) {
+      console.error('Error deleting entry:', error);
+      return;
+    }
+
     const updatedEntries = entries.filter(entry => entry.id !== entryToDelete.id);
     setEntries(updatedEntries);
     localStorage.setItem('entries', JSON.stringify(updatedEntries));
@@ -105,12 +194,38 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     setEditingEntry(null);
   };
 
-  const handleSupplierUpdate = (updatedSuppliers: Supplier[]) => {
+  const handleSupplierUpdate = async (updatedSuppliers: Supplier[]) => {
+    // Aggiorna i fornitori su Supabase
+    const { error } = await supabase
+      .from('suppliers')
+      .upsert(
+        updatedSuppliers.map(supplier => ({
+          id: supplier.id,
+          name: supplier.name,
+          default_payment_method: supplier.defaultPaymentMethod
+        }))
+      );
+
+    if (error) {
+      console.error('Error updating suppliers:', error);
+      return;
+    }
+
     setSuppliers(updatedSuppliers);
     localStorage.setItem('suppliers', JSON.stringify(updatedSuppliers));
   };
 
-  const handleAdminPasswordChange = (newPassword: string) => {
+  const handleAdminPasswordChange = async (newPassword: string) => {
+    const { error } = await supabase
+      .from('users')
+      .update({ password: newPassword })
+      .eq('username', 'edoardo');
+
+    if (error) {
+      console.error('Error updating admin password:', error);
+      return;
+    }
+
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     const updatedUsers = users.map((user: any) => 
       user.username === 'edoardo' ? { ...user, password: newPassword } : user
