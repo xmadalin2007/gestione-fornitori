@@ -17,48 +17,38 @@ export default function SupplierTable({
   onEdit,
   onDelete
 }: SupplierTableProps) {
-  // Raggruppa le spese per fornitore
-  const entriesBySupplier = useMemo(() => {
-    return entries.reduce((acc, entry) => {
-      const supplier = suppliers.find(s => s.id === entry.supplierId);
-      if (!supplier) return acc;
-
-      if (!acc[supplier.id]) {
-        acc[supplier.id] = {
-          supplier,
-          entries: [],
-          total: 0
-        };
-      }
-
-      acc[supplier.id].entries.push(entry);
-      acc[supplier.id].total += entry.amount;
-
-      return acc;
-    }, {} as Record<string, { supplier: Supplier; entries: Entry[]; total: number }>);
-  }, [entries, suppliers]);
-
-  // Calcola il totale generale
-  const totalAmount = useMemo(() => {
-    return Object.values(entriesBySupplier).reduce((total, { total: supplierTotal }) => total + supplierTotal, 0);
-  }, [entriesBySupplier]);
-
   const getSupplierName = (supplierId: string) => {
     const supplier = suppliers.find(s => s.id === supplierId);
     return supplier ? supplier.name : 'Fornitore non trovato';
   };
 
   const formatDate = (dateString: string) => {
-    const [year, month, day] = dateString.split('-');
-    return `${day}/${month}/${year}`;
+    if (!dateString) return '';
+    try {
+      const [year, month, day] = dateString.split('-');
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error('Errore nel formato della data:', error);
+      return dateString;
+    }
   };
 
   const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount);
+    try {
+      return new Intl.NumberFormat('it-IT', {
+        style: 'currency',
+        currency: 'EUR'
+      }).format(amount);
+    } catch (error) {
+      console.error('Errore nella formattazione dell\'importo:', error);
+      return `€${amount.toFixed(2)}`;
+    }
   };
+
+  // Calcola il totale delle spese
+  const totalAmount = useMemo(() => {
+    return entries.reduce((total, entry) => total + (entry.amount || 0), 0);
+  }, [entries]);
 
   return (
     <div className="mt-8 flex flex-col">
@@ -125,11 +115,11 @@ export default function SupplierTable({
               </tbody>
               <tfoot>
                 <tr className="bg-gray-50">
-                  <td colSpan={2} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td colSpan={2} className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
                     Totale
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    €{totalAmount.toFixed(2)}
+                  <td className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    {formatAmount(totalAmount)}
                   </td>
                   <td colSpan={3}></td>
                 </tr>
