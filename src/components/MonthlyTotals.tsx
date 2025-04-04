@@ -129,7 +129,8 @@ export default function MonthlyTotals({ entries, suppliers }: MonthlyTotalsProps
         </div>
       </div>
       
-      {monthNames.map((monthName, index) => {
+      {[...monthNames].reverse().map((monthName, reversedIndex) => {
+        const index = 11 - reversedIndex; // Trasformiamo l'indice (11=dicembre, 0=gennaio)
         const monthData = monthlyData[index + 1];
         const hasData = monthData.total > 0;
 
