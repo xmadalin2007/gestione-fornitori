@@ -11,52 +11,28 @@ interface SupplierFormProps {
   onCancel: () => void;
 }
 
-export default function SupplierForm({
-  suppliers = [],
-  onSubmit,
-  editingEntry,
-  onCancel
-}: SupplierFormProps) {
-  const [date, setDate] = useState<string>(() => {
-    if (editingEntry?.date) return editingEntry.date;
-    return new Date().toISOString().split('T')[0];
-  });
-  
-  const [supplierId, setSupplierId] = useState<string>(() => {
-    if (editingEntry?.supplierId) return editingEntry.supplierId;
-    return suppliers[0]?.id || '';
-  });
-  
-  const [amount, setAmount] = useState<string>(() => {
-    if (editingEntry?.amount) return editingEntry.amount.toString();
-    return '';
-  });
-  
-  const [description, setDescription] = useState<string>(editingEntry?.description || '');
-  const [paymentMethod, setPaymentMethod] = useState<'contanti' | 'bonifico'>(
-    editingEntry?.paymentMethod || 'contanti'
-  );
+export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCancel }: SupplierFormProps) {
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [supplierId, setSupplierId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'contanti' | 'bonifico'>('contanti');
 
   useEffect(() => {
     if (editingEntry) {
-      setDate(editingEntry.date || new Date().toISOString().split('T')[0]);
-      setSupplierId(editingEntry.supplierId || suppliers[0]?.id || '');
-      setAmount(editingEntry.amount?.toString() || '');
+      setDate(editingEntry.date);
+      setSupplierId(editingEntry.supplierId);
+      setAmount(editingEntry.amount.toString());
       setDescription(editingEntry.description || '');
-      setPaymentMethod(editingEntry.paymentMethod || 'contanti');
+      setPaymentMethod(editingEntry.paymentMethod);
     }
-  }, [editingEntry, suppliers]);
+  }, [editingEntry]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!supplierId) {
-      alert('Seleziona un fornitore');
-      return;
-    }
-
-    if (!amount || isNaN(parseFloat(amount))) {
-      alert('Inserisci un importo valido');
+    if (!date || !supplierId || !amount) {
+      alert('Per favore compila tutti i campi obbligatori');
       return;
     }
 
@@ -65,120 +41,138 @@ export default function SupplierForm({
       date,
       supplierId,
       amount: parseFloat(amount),
-      description,
-      paymentMethod,
-      year: new Date(date).getFullYear().toString()
+      description: description.trim(),
+      paymentMethod
     };
 
     onSubmit(entry);
 
+    // Reset form
     if (!editingEntry) {
-      // Reset form only for new entries
-      setDate(new Date().toISOString().split('T')[0]);
-      setSupplierId(suppliers[0]?.id || '');
       setAmount('');
       setDescription('');
-      setPaymentMethod('contanti');
+      // Mantieni il fornitore e il metodo di pagamento selezionati per comodità
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="date" className="block text-sm font-medium text-gray-700">
-            Data
-          </label>
-          <input
-            type="date"
-            id="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-            required
-          />
-        </div>
+    <form onSubmit={handleSubmit} className="bg-white shadow-sm ring-1 ring-gray-900/5 sm:rounded-xl md:col-span-2">
+      <div className="px-4 py-6 sm:p-8">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
+          <div className="sm:col-span-3">
+            <label htmlFor="date" className="block text-sm font-medium leading-6 text-gray-900">
+              Data *
+            </label>
+            <div className="mt-2">
+              <input
+                type="date"
+                name="date"
+                id="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
+                required
+              />
+            </div>
+          </div>
 
-        <div>
-          <label htmlFor="supplier" className="block text-sm font-medium text-gray-700">
-            Fornitore
-          </label>
-          <select
-            id="supplier"
-            value={supplierId}
-            onChange={(e) => setSupplierId(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-            required
-          >
-            <option value="">Seleziona un fornitore</option>
-            {Array.isArray(suppliers) && suppliers.map((supplier) => (
-              <option key={supplier.id} value={supplier.id}>
-                {supplier.name}
-              </option>
-            ))}
-          </select>
-        </div>
+          <div className="sm:col-span-3">
+            <label htmlFor="supplier" className="block text-sm font-medium leading-6 text-gray-900">
+              Fornitore *
+            </label>
+            <div className="mt-2">
+              <select
+                id="supplier"
+                name="supplier"
+                value={supplierId}
+                onChange={(e) => {
+                  setSupplierId(e.target.value);
+                  const supplier = suppliers.find(s => s.id === e.target.value);
+                  if (supplier) {
+                    setPaymentMethod(supplier.defaultPaymentMethod);
+                  }
+                }}
+                className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:max-w-xs sm:text-sm sm:leading-6"
+                required
+              >
+                <option value="">Seleziona un fornitore</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-        <div>
-          <label htmlFor="amount" className="block text-sm font-medium text-gray-700">
-            Importo
-          </label>
-          <input
-            type="number"
-            id="amount"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            step="0.01"
-            min="0"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-            required
-          />
-        </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="amount" className="block text-sm font-medium leading-6 text-gray-900">
+              Importo *
+            </label>
+            <div className="mt-2">
+              <input
+                type="number"
+                name="amount"
+                id="amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                step="0.01"
+                min="0"
+                className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
+                required
+              />
+            </div>
+          </div>
 
-        <div>
-          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-            Descrizione
-          </label>
-          <input
-            type="text"
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-            required
-          />
-        </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="payment-method" className="block text-sm font-medium leading-6 text-gray-900">
+              Metodo di Pagamento *
+            </label>
+            <div className="mt-2">
+              <select
+                id="payment-method"
+                name="payment-method"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as 'contanti' | 'bonifico')}
+                className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:max-w-xs sm:text-sm sm:leading-6"
+                required
+              >
+                <option value="contanti">Contanti</option>
+                <option value="bonifico">Bonifico</option>
+              </select>
+            </div>
+          </div>
 
-        <div>
-          <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700">
-            Metodo di Pagamento
-          </label>
-          <select
-            id="paymentMethod"
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value as 'contanti' | 'bonifico')}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-            required
-          >
-            <option value="contanti">Contanti</option>
-            <option value="bonifico">Bonifico</option>
-          </select>
+          <div className="col-span-full">
+            <label htmlFor="description" className="block text-sm font-medium leading-6 text-gray-900">
+              Descrizione
+            </label>
+            <div className="mt-2">
+              <input
+                type="text"
+                name="description"
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
+              />
+            </div>
+          </div>
         </div>
       </div>
-
-      <div className="flex justify-end space-x-3">
+      <div className="flex items-center justify-end gap-x-6 border-t border-gray-900/10 px-4 py-4 sm:px-8">
         {editingEntry && (
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="text-sm font-semibold leading-6 text-gray-900"
           >
             Annulla
           </button>
         )}
         <button
           type="submit"
-          className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
         >
           {editingEntry ? 'Salva Modifiche' : 'Aggiungi Spesa'}
         </button>
