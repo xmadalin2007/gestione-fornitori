@@ -106,26 +106,49 @@ export default function UserManagement() {
 
   const handleDeleteUser = async (userId: string) => {
     try {
+      setError(null);
+      setSuccess(null);
+
       // Verifica che l'utente non sia admin
       const userToDelete = users.find(u => u.id === userId);
-      if (userToDelete?.is_admin) {
+      if (!userToDelete) {
+        setError('Utente non trovato');
+        return;
+      }
+
+      if (userToDelete.is_admin) {
         setError('Non è possibile eliminare un utente admin');
         return;
       }
 
-      const { error } = await supabase
+      // Verifica se l'utente corrente è admin
+      const { data: currentUser, error: currentUserError } = await supabase
+        .from('users')
+        .select('is_admin')
+        .eq('username', localStorage.getItem('currentUser'))
+        .single();
+
+      if (currentUserError || !currentUser?.is_admin) {
+        setError('Non hai i permessi per eliminare gli utenti');
+        return;
+      }
+
+      // Elimina l'utente
+      const { error: deleteError } = await supabase
         .from('users')
         .delete()
         .eq('id', userId);
 
-      if (error) {
-        console.error('Errore nella cancellazione:', error);
-        setError('Errore durante l\'eliminazione dell\'utente');
+      if (deleteError) {
+        console.error('Errore nella cancellazione:', deleteError);
+        setError('Errore durante l\'eliminazione dell\'utente: ' + deleteError.message);
         return;
       }
 
+      // Rimuovi l'utente dalla lista locale
+      setUsers(users.filter(u => u.id !== userId));
       setSuccess('Utente eliminato con successo');
-      loadUsers();
+
     } catch (err) {
       console.error('Errore imprevisto:', err);
       setError('Errore imprevisto durante l\'eliminazione');

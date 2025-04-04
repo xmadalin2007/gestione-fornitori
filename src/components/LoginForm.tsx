@@ -29,6 +29,7 @@ export default function LoginForm() {
         .single();
 
       if (userError || !user) {
+        console.error('Errore nel login:', userError);
         setError('Credenziali non valide');
         return;
       }
@@ -43,6 +44,13 @@ export default function LoginForm() {
       localStorage.setItem('currentUser', username);
       localStorage.setItem('selectedYear', selectedYear);
       localStorage.setItem('isAdmin', user.is_admin.toString());
+      
+      console.log('Login effettuato con successo:', {
+        username,
+        isAdmin: user.is_admin,
+        selectedYear
+      });
+
       router.push('/dashboard');
     } catch (err) {
       console.error('Errore durante il login:', err);
