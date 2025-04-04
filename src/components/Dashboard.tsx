@@ -17,7 +17,8 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Variabili d\'ambiente Supabase mancanti:', {
     url: supabaseUrl ? 'presente' : 'mancante',
-    key: supabaseAnonKey ? 'presente' : 'mancante'
+    key: supabaseAnonKey ? 'presente' : 'mancante',
+    env: process.env.NODE_ENV
   });
 }
 
@@ -28,17 +29,40 @@ const supabase = createClient(
 );
 
 // Test immediato della connessione
-console.log('Tentativo di connessione a Supabase...');
-supabase
-  .from('suppliers')
-  .select('count')
-  .then(({ data, error }) => {
+console.log('Tentativo di connessione a Supabase...', {
+  ambiente: process.env.NODE_ENV,
+  url: supabaseUrl?.substring(0, 10) + '...'
+});
+
+// Funzione per testare la connessione
+const testSupabaseConnection = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('count');
+
     if (error) {
-      console.error('Errore di connessione a Supabase:', error);
-    } else {
-      console.log('Connessione a Supabase riuscita, conteggio fornitori:', data);
+      console.error('Errore di connessione a Supabase:', {
+        message: error.message,
+        code: error.code,
+        details: error.details
+      });
+      return false;
     }
-  });
+
+    console.log('Connessione a Supabase riuscita:', {
+      data,
+      ambiente: process.env.NODE_ENV
+    });
+    return true;
+  } catch (err) {
+    console.error('Errore imprevisto nella connessione a Supabase:', err);
+    return false;
+  }
+};
+
+// Esegui il test di connessione
+testSupabaseConnection();
 
 export interface Entry {
   id: string;
@@ -50,16 +74,15 @@ export interface Entry {
   year?: string;
 }
 
-interface DashboardProps {
+export interface DashboardProps {
   initialYear: string;
   username: string;
-  suppliers: Supplier[];
-  onUpdate?: () => void;
 }
 
-export default function Dashboard({ initialYear, username, suppliers, onUpdate }: DashboardProps) {
+export default function Dashboard({ initialYear, username }: DashboardProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'spese' | 'fornitori' | 'utenti'>('spese');
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>(initialYear);
@@ -73,6 +96,54 @@ export default function Dashboard({ initialYear, username, suppliers, onUpdate }
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Carica i fornitori da Supabase
+  useEffect(() => {
+    const loadSuppliers = async () => {
+      try {
+        console.log('Caricamento fornitori da Supabase...');
+        const { data, error } = await supabase
+          .from('suppliers')
+          .select('*')
+          .order('name');
+
+        if (error) {
+          console.error('Errore nel caricamento fornitori:', error);
+          setError('Errore nel caricamento fornitori');
+          // Carica da localStorage come fallback
+          const localSuppliers = localStorage.getItem('suppliers');
+          if (localSuppliers) {
+            console.log('Caricamento fornitori da localStorage come fallback');
+            setSuppliers(JSON.parse(localSuppliers));
+          }
+          return;
+        }
+
+        console.log('Fornitori caricati da Supabase:', data);
+        const formattedSuppliers = data.map(supplier => ({
+          id: supplier.id,
+          name: supplier.name,
+          defaultPaymentMethod: supplier.default_payment_method as 'contanti' | 'bonifico'
+        }));
+        setSuppliers(formattedSuppliers);
+        // Aggiorna anche localStorage
+        localStorage.setItem('suppliers', JSON.stringify(formattedSuppliers));
+      } catch (err) {
+        console.error('Errore imprevisto nel caricamento fornitori:', err);
+        setError('Errore nel caricamento fornitori');
+        // Carica da localStorage come fallback
+        const localSuppliers = localStorage.getItem('suppliers');
+        if (localSuppliers) {
+          console.log('Caricamento fornitori da localStorage come fallback');
+          setSuppliers(JSON.parse(localSuppliers));
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSuppliers();
+  }, []);
 
   // Carica le spese quando il componente viene montato o quando cambia l'anno selezionato
   useEffect(() => {
@@ -170,9 +241,6 @@ export default function Dashboard({ initialYear, username, suppliers, onUpdate }
       localStorage.setItem('entries', JSON.stringify(allEntries));
       
       setEditingEntry(null);
-      if (onUpdate) {
-        onUpdate();
-      }
     } catch (err) {
       console.error('Errore nel salvare la spesa:', err);
       alert('Errore nel salvare la spesa. Riprova.');
@@ -192,10 +260,6 @@ export default function Dashboard({ initialYear, username, suppliers, onUpdate }
 
       setEntries(entries.filter(e => e.id !== entry.id));
       localStorage.setItem('entries', JSON.stringify(entries.filter(e => e.id !== entry.id)));
-      
-      if (onUpdate) {
-        onUpdate();
-      }
     } catch (err) {
       console.error('Errore nell\'eliminazione della spesa:', err);
       alert('Errore nell\'eliminazione della spesa. Riprova.');
@@ -212,34 +276,45 @@ export default function Dashboard({ initialYear, username, suppliers, onUpdate }
 
   const handleSupplierUpdate = async (updatedSuppliers: Supplier[]) => {
     try {
-      console.log('Aggiornamento fornitori:', updatedSuppliers);
+      console.log('Tentativo di aggiornamento fornitori:', updatedSuppliers);
       
       // Salva in localStorage come backup
       localStorage.setItem('suppliers', JSON.stringify(updatedSuppliers));
       console.log('Fornitori salvati in localStorage');
 
+      // Prepara i dati per Supabase
+      const suppliersForSupabase = updatedSuppliers.map(supplier => ({
+        id: supplier.id,
+        name: supplier.name,
+        default_payment_method: supplier.defaultPaymentMethod
+      }));
+      
+      console.log('Dati preparati per Supabase:', suppliersForSupabase);
+
       // Aggiorna i fornitori su Supabase
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('suppliers')
-        .upsert(
-          updatedSuppliers.map(supplier => ({
-            id: supplier.id,
-            name: supplier.name,
-            default_payment_method: supplier.defaultPaymentMethod
-          }))
-        );
+        .upsert(suppliersForSupabase, {
+          onConflict: 'id'
+        })
+        .select();
 
       if (error) {
-        console.error('Errore nell\'aggiornamento dei fornitori su Supabase:', error);
+        console.error('Errore dettagliato Supabase:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
         alert('Errore nel salvare i fornitori su Supabase. I dati sono stati salvati localmente come backup.');
         return;
       }
 
-      console.log('Fornitori aggiornati con successo su Supabase');
+      console.log('Risposta Supabase:', data);
       
-      if (onUpdate) {
-        await onUpdate();
-      }
+      // Aggiorna lo stato locale con i dati più recenti
+      setSuppliers(updatedSuppliers);
+      console.log('Stato locale aggiornato con i nuovi fornitori');
     } catch (err) {
       console.error('Errore imprevisto durante l\'aggiornamento dei fornitori:', err);
       alert('Errore imprevisto durante il salvataggio. I dati sono stati salvati localmente come backup.');
