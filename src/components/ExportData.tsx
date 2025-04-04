@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 import type { Supplier } from './SupplierManagement';
@@ -13,7 +13,32 @@ type ExportDataProps = {
 };
 
 export default function ExportData({ entries, suppliers, selectedYear }: ExportDataProps) {
-  const [showOptions, setShowOptions] = React.useState(false);
+  const [showOptions, setShowOptions] = useState(false);
+  const [showMonthSelector, setShowMonthSelector] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+
+  const monthNames = [
+    'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+    'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+  ];
+
+  // Ottiene i mesi disponibili con dati dalle entries
+  const availableMonths = React.useMemo(() => {
+    const months = new Set<string>();
+    const filteredEntries = selectedYear 
+      ? entries.filter(entry => entry.date.startsWith(selectedYear))
+      : entries;
+    
+    filteredEntries.forEach(entry => {
+      const date = new Date(entry.date);
+      if (!isNaN(date.getTime())) {
+        const month = date.getMonth() + 1; // 1-12
+        months.add(month.toString());
+      }
+    });
+    
+    return Array.from(months).map(m => parseInt(m, 10)).sort((a, b) => a - b);
+  }, [entries, selectedYear]);
 
   const formatDate = (isoDate: string) => {
     const [year, month, day] = isoDate.split('-');
@@ -86,11 +111,91 @@ export default function ExportData({ entries, suppliers, selectedYear }: ExportD
     return groupedEntries;
   };
 
+  // Filtra le entries per un mese specifico
+  const filterEntriesByMonth = (entries: Entry[], month: number) => {
+    return entries.filter(entry => {
+      const date = new Date(entry.date);
+      if (isNaN(date.getTime())) return false;
+      return date.getMonth() + 1 === month;
+    });
+  };
+
   // Ottieni il nome del mese in italiano
   const getMonthName = (monthKey: string) => {
     const [year, month] = monthKey.split('-');
     const monthIndex = parseInt(month, 10) - 1;
     return new Date(parseInt(year), monthIndex).toLocaleString('it-IT', { month: 'long' });
+  };
+
+  const handleMonthSelect = (month: number) => {
+    setSelectedMonth(month);
+    exportMonthlyData(month);
+    setShowMonthSelector(false);
+    setShowOptions(false);
+  };
+
+  const exportMonthlyData = (month: number) => {
+    const filteredEntries = selectedYear 
+      ? entries.filter(entry => entry.date.startsWith(selectedYear))
+      : entries;
+    
+    const monthEntries = filterEntriesByMonth(filteredEntries, month);
+    
+    if (monthEntries.length === 0) {
+      alert(`Nessuna spesa trovata per ${monthNames[month - 1]}`);
+      return;
+    }
+    
+    const wb = XLSX.utils.book_new();
+    const year = selectedYear || new Date().getFullYear().toString();
+    const monthName = monthNames[month - 1];
+    
+    // Calcola i totali per il mese
+    const totals = calculateTotals(monthEntries);
+    const supplierTotals = calculateSupplierTotals(monthEntries);
+    
+    // Crea foglio riepilogo per il mese
+    const summaryData = [
+      [`Riepilogo ${monthName} ${year}`, ''],
+      ['Totale Contanti', totals.contanti],
+      ['Totale Bonifici', totals.bonifico],
+      ['Totale Complessivo', totals.total],
+      ['', ''],
+      ['Riepilogo per Fornitore', '']
+    ];
+    
+    Object.entries(supplierTotals).forEach(([supplierId, totals]) => {
+      const supplier = suppliers.find(s => s.id === supplierId);
+      if (supplier) {
+        summaryData.push(
+          [supplier.name, ''],
+          ['Contanti', totals.contanti],
+          ['Bonifici', totals.bonifico],
+          ['Totale', totals.total],
+          ['', '']
+        );
+      }
+    });
+    
+    // Aggiungi dettaglio spese
+    summaryData.push(['', '']);
+    summaryData.push(['Dettaglio Spese', '']);
+    summaryData.push(['Data', 'Fornitore', 'Importo', 'Metodo', 'Descrizione']);
+    
+    monthEntries.forEach(entry => {
+      const supplier = suppliers.find(s => s.id === entry.supplierId);
+      summaryData.push([
+        formatDate(entry.date),
+        supplier?.name || 'Fornitore sconosciuto',
+        entry.amount,
+        entry.paymentMethod === 'contanti' ? 'Contanti' : 'Bonifico',
+        entry.description || ''
+      ]);
+    });
+    
+    const ws = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, ws, `${monthName} ${year}`);
+    XLSX.writeFile(wb, `Riepilogo_${monthName}_${year}.xlsx`);
   };
 
   const exportToExcel = (type: 'dettaglio' | 'riepilogo', period: 'mensile' | 'annuale') => {
@@ -115,116 +220,44 @@ export default function ExportData({ entries, suppliers, selectedYear }: ExportD
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Dettaglio Spese');
       XLSX.writeFile(wb, `Dettaglio_Spese_${selectedYear || 'Completo'}.xlsx`);
+      setShowOptions(false);
+    } else if (period === 'mensile') {
+      // Mostra selettore mese
+      setShowMonthSelector(true);
     } else {
-      // Esporta riepilogo
+      // Riepilogo annuale
       const wb = XLSX.utils.book_new();
-      
-      if (period === 'mensile') {
-        // Riepilogo mensile
-        const groupedEntries = groupEntriesByMonth(filteredEntries);
-        
-        // Crea foglio per ogni mese con dati
-        Object.entries(groupedEntries).forEach(([monthKey, monthEntries]) => {
-          if (monthEntries.length === 0) return;
-          
-          const monthName = getMonthName(monthKey);
-          const [year, month] = monthKey.split('-');
-          
-          const totals = calculateTotals(monthEntries);
-          const supplierTotals = calculateSupplierTotals(monthEntries);
-          
-          // Crea foglio riepilogo per il mese
-          const summaryData = [
-            [`Riepilogo ${monthName} ${year}`, ''],
-            ['Totale Contanti', totals.contanti],
-            ['Totale Bonifici', totals.bonifico],
-            ['Totale Complessivo', totals.total],
-            ['', ''],
-            ['Riepilogo per Fornitore', '']
-          ];
-          
-          Object.entries(supplierTotals).forEach(([supplierId, totals]) => {
-            const supplier = suppliers.find(s => s.id === supplierId);
-            if (supplier) {
-              summaryData.push(
-                [supplier.name, ''],
-                ['Contanti', totals.contanti],
-                ['Bonifici', totals.bonifico],
-                ['Totale', totals.total],
-                ['', '']
-              );
-            }
-          });
-          
-          const ws = XLSX.utils.aoa_to_sheet(summaryData);
-          XLSX.utils.book_append_sheet(wb, ws, `${monthName} ${year}`);
-        });
-        
-        // Aggiungi foglio con il totale annuale
-        const annualTotals = calculateTotals(filteredEntries);
-        const annualSupplierTotals = calculateSupplierTotals(filteredEntries);
-        
-        const annualSummaryData = [
-          [`Riepilogo Annuale ${selectedYear || 'Completo'}`, ''],
-          ['Totale Contanti', annualTotals.contanti],
-          ['Totale Bonifici', annualTotals.bonifico],
-          ['Totale Complessivo', annualTotals.total],
-          ['', ''],
-          ['Riepilogo Annuale per Fornitore', '']
-        ];
-        
-        Object.entries(annualSupplierTotals).forEach(([supplierId, totals]) => {
-          const supplier = suppliers.find(s => s.id === supplierId);
-          if (supplier) {
-            annualSummaryData.push(
-              [supplier.name, ''],
-              ['Contanti', totals.contanti],
-              ['Bonifici', totals.bonifico],
-              ['Totale', totals.total],
-              ['', '']
-            );
-          }
-        });
-        
-        const annualWs = XLSX.utils.aoa_to_sheet(annualSummaryData);
-        XLSX.utils.book_append_sheet(wb, annualWs, `Totale Annuale`);
-        
-        XLSX.writeFile(wb, `Riepilogo_Mensile_${selectedYear || 'Completo'}.xlsx`);
-      } else {
-        // Riepilogo annuale (come prima)
-        const totals = calculateTotals(filteredEntries);
-        const supplierTotals = calculateSupplierTotals(filteredEntries);
+      const totals = calculateTotals(filteredEntries);
+      const supplierTotals = calculateSupplierTotals(filteredEntries);
 
-        // Crea foglio riepilogo generale
-        const summaryData = [
-          ['Riepilogo Totali Annuali', ''],
-          ['Totale Contanti', totals.contanti],
-          ['Totale Bonifici', totals.bonifico],
-          ['Totale Complessivo', totals.total],
-          ['', ''],
-          ['Riepilogo per Fornitore', '']
-        ];
+      // Crea foglio riepilogo generale
+      const summaryData = [
+        ['Riepilogo Totali Annuali', ''],
+        ['Totale Contanti', totals.contanti],
+        ['Totale Bonifici', totals.bonifico],
+        ['Totale Complessivo', totals.total],
+        ['', ''],
+        ['Riepilogo per Fornitore', '']
+      ];
 
-        Object.entries(supplierTotals).forEach(([supplierId, totals]) => {
-          const supplier = suppliers.find(s => s.id === supplierId);
-          if (supplier) {
-            summaryData.push(
-              [supplier.name, ''],
-              ['Contanti', totals.contanti],
-              ['Bonifici', totals.bonifico],
-              ['Totale', totals.total],
-              ['', '']
-            );
-          }
-        });
+      Object.entries(supplierTotals).forEach(([supplierId, totals]) => {
+        const supplier = suppliers.find(s => s.id === supplierId);
+        if (supplier) {
+          summaryData.push(
+            [supplier.name, ''],
+            ['Contanti', totals.contanti],
+            ['Bonifici', totals.bonifico],
+            ['Totale', totals.total],
+            ['', '']
+          );
+        }
+      });
 
-        const ws = XLSX.utils.aoa_to_sheet(summaryData);
-        XLSX.utils.book_append_sheet(wb, ws, 'Riepilogo');
-        XLSX.writeFile(wb, `Riepilogo_Annuale_${selectedYear || 'Completo'}.xlsx`);
-      }
+      const ws = XLSX.utils.aoa_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, ws, 'Riepilogo');
+      XLSX.writeFile(wb, `Riepilogo_Annuale_${selectedYear || 'Completo'}.xlsx`);
+      setShowOptions(false);
     }
-
-    setShowOptions(false);
   };
 
   return (
@@ -236,7 +269,7 @@ export default function ExportData({ entries, suppliers, selectedYear }: ExportD
         Esporta Excel
       </button>
 
-      {showOptions && (
+      {showOptions && !showMonthSelector && (
         <div className="origin-top-right absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
           <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
             <div className="px-4 py-2 text-sm font-medium text-gray-700 border-b">
@@ -266,6 +299,43 @@ export default function ExportData({ entries, suppliers, selectedYear }: ExportD
               role="menuitem"
             >
               Esporta Riepilogo Annuale
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showMonthSelector && (
+        <div className="origin-top-right absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+          <div className="py-2 px-4 border-b border-gray-200">
+            <h3 className="text-sm font-medium text-gray-700">Seleziona Mese</h3>
+          </div>
+          <div className="py-1 max-h-60 overflow-auto" role="menu" aria-orientation="vertical">
+            {availableMonths.length > 0 ? (
+              availableMonths.map((month) => (
+                <button
+                  key={month}
+                  onClick={() => handleMonthSelect(month)}
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  role="menuitem"
+                >
+                  {monthNames[month - 1]}
+                </button>
+              ))
+            ) : (
+              <div className="px-4 py-2 text-sm text-gray-500">
+                Nessun mese disponibile con dati
+              </div>
+            )}
+          </div>
+          <div className="py-1 border-t border-gray-200">
+            <button
+              onClick={() => {
+                setShowMonthSelector(false);
+                setShowOptions(true);
+              }}
+              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              Indietro
             </button>
           </div>
         </div>
