@@ -117,6 +117,8 @@ export default function MonthlyTotals({ entries, suppliers }: MonthlyTotalsProps
       monthData.bySupplier[entry.supplierId].entries.push(entry);
     });
 
+    filteredEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
     return data;
   }, [filteredEntries, suppliersMap]);
 
