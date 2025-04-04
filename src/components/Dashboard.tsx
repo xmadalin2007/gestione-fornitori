@@ -10,9 +10,17 @@ import { useRouter } from 'next/navigation';
 import type { Supplier } from '@/components/SupplierManagement';
 import { createClient } from '@supabase/supabase-js';
 
+// Verifica che le variabili d'ambiente siano definite
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Variabili d\'ambiente Supabase mancanti');
+}
+
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  supabaseUrl || '',
+  supabaseAnonKey || ''
 );
 
 export interface Entry {
@@ -49,16 +57,25 @@ export default function Dashboard({ initialYear, username, suppliers, onUpdate }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Carica le spese quando il componente viene montato o quando cambia l'anno selezionato
   useEffect(() => {
     loadEntries();
-  }, []);
+  }, [selectedYear]);
 
   const loadEntries = async () => {
     try {
+      setLoading(true);
       console.log('Caricamento spese da Supabase...');
+      
+      // Verifica se Supabase è configurato
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Configurazione Supabase mancante');
+      }
+
       const { data: entriesData, error: entriesError } = await supabase
         .from('entries')
         .select('*')
+        .eq('year', selectedYear)
         .order('date', { ascending: false });
 
       if (entriesError) {
@@ -67,17 +84,25 @@ export default function Dashboard({ initialYear, username, suppliers, onUpdate }
 
       console.log('Spese caricate:', entriesData);
       setEntries(entriesData || []);
-      setLoading(false);
+      setError(null);
     } catch (err) {
       console.error('Errore nel caricamento delle spese:', err);
       setError('Errore nel caricamento delle spese');
-      setLoading(false);
       
       // Fallback to localStorage
       const storedEntries = localStorage.getItem('entries');
       if (storedEntries) {
-        setEntries(JSON.parse(storedEntries));
+        try {
+          const parsedEntries = JSON.parse(storedEntries);
+          const filteredEntries = parsedEntries.filter((entry: Entry) => entry.year === selectedYear);
+          setEntries(filteredEntries);
+        } catch (parseError) {
+          console.error('Errore nel parsing delle spese da localStorage:', parseError);
+          setEntries([]);
+        }
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -115,11 +140,17 @@ export default function Dashboard({ initialYear, username, suppliers, onUpdate }
           throw insertError;
         }
 
-        setEntries([newEntry, ...entries]);
+        if (newEntry.year === selectedYear) {
+          setEntries([newEntry, ...entries]);
+        }
       }
 
       // Update localStorage as backup
-      localStorage.setItem('entries', JSON.stringify(entries));
+      const allEntries = [...entries];
+      if (!editingEntry && entryWithYear.year !== selectedYear) {
+        allEntries.push(entryWithYear);
+      }
+      localStorage.setItem('entries', JSON.stringify(allEntries));
       
       setEditingEntry(null);
       if (onUpdate) {
