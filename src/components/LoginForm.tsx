@@ -2,11 +2,7 @@
 
 import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-
-interface User {
-  username: string;
-  password: string;
-}
+import { supabase } from '@/lib/supabase';
 
 export default function LoginForm() {
   const router = useRouter();
@@ -20,34 +16,37 @@ export default function LoginForm() {
     (_, i) => (new Date().getFullYear() - i).toString()
   );
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
 
-    // Verifica le credenziali
-    if (username === 'edoardo') {
-      // Recupera gli utenti dal localStorage
-      const users = JSON.parse(localStorage.getItem('users') || '[]') as User[];
-      const adminUser = users.find((user: User) => user.username === 'edoardo');
-      
-      if (adminUser && password === adminUser.password) {
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('currentUser', username);
-        localStorage.setItem('selectedYear', selectedYear);
-        router.push('/dashboard');
-      } else if (!adminUser && password === 'edoardO2024') {
-        // Prima volta che l'admin accede, crea l'utente
-        const newUsers = [...users, { username: 'edoardo', password: 'edoardO2024' }];
-        localStorage.setItem('users', JSON.stringify(newUsers));
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('currentUser', username);
-        localStorage.setItem('selectedYear', selectedYear);
-        router.push('/dashboard');
-      } else {
+    try {
+      // Verifica le credenziali
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .single();
+
+      if (userError || !user) {
         setError('Credenziali non valide');
+        return;
       }
-    } else {
-      setError('Credenziali non valide');
+
+      if (user.password !== password) {
+        setError('Password non corretta');
+        return;
+      }
+
+      // Login successful
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('currentUser', username);
+      localStorage.setItem('selectedYear', selectedYear);
+      localStorage.setItem('isAdmin', user.is_admin.toString());
+      router.push('/dashboard');
+    } catch (err) {
+      console.error('Errore durante il login:', err);
+      setError('Si è verificato un errore durante il login');
     }
   };
 
