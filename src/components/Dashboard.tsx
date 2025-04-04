@@ -43,13 +43,14 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
   // Carica i fornitori da Supabase
   useEffect(() => {
     const loadSuppliers = async () => {
+      console.log('Caricamento fornitori...');
       const { data, error } = await supabase
         .from('suppliers')
         .select('*')
         .order('name');
       
       if (error) {
-        console.error('Error loading suppliers:', error);
+        console.error('Errore caricamento fornitori:', error);
         // Fallback su localStorage
         const storedSuppliers = localStorage.getItem('suppliers');
         if (storedSuppliers) {
@@ -58,6 +59,7 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
         return;
       }
 
+      console.log('Fornitori caricati:', data);
       const formattedSuppliers = data.map(supplier => ({
         id: supplier.id,
         name: supplier.name,
@@ -74,13 +76,14 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
   // Carica le spese da Supabase
   useEffect(() => {
     const loadEntries = async () => {
+      console.log('Caricamento spese...');
       const { data, error } = await supabase
         .from('entries')
         .select('*')
         .order('date', { ascending: false });
       
       if (error) {
-        console.error('Error loading entries:', error);
+        console.error('Errore caricamento spese:', error);
         // Fallback su localStorage
         const storedEntries = localStorage.getItem('entries');
         if (storedEntries) {
@@ -89,6 +92,7 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
         return;
       }
 
+      console.log('Spese caricate:', data);
       const formattedEntries = data.map(entry => ({
         id: entry.id,
         date: entry.date,
@@ -112,22 +116,26 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
 
   const handleNewEntry = async (entry: Entry) => {
     try {
+      console.log('Salvataggio spesa:', entry);
       if (editingEntry) {
         // Modifica di una spesa esistente
+        const updateData = {
+          date: entry.date,
+          supplier_id: entry.supplierId,
+          amount: entry.amount,
+          description: entry.description,
+          payment_method: entry.paymentMethod,
+          year: selectedYear
+        };
+        console.log('Aggiornamento spesa con dati:', updateData);
+        
         const { error } = await supabase
           .from('entries')
-          .update({
-            date: entry.date,
-            supplier_id: entry.supplierId,
-            amount: entry.amount,
-            description: entry.description,
-            payment_method: entry.paymentMethod,
-            year: selectedYear
-          })
+          .update(updateData)
           .eq('id', editingEntry.id);
 
         if (error) {
-          console.error('Error updating entry:', error);
+          console.error('Errore aggiornamento spesa:', error);
           alert('Errore durante l\'aggiornamento della spesa: ' + error.message);
           return;
         }
@@ -140,31 +148,35 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
         setEditingEntry(null);
       } else {
         // Aggiunta di una nuova spesa
+        const insertData = {
+          date: entry.date,
+          supplier_id: entry.supplierId,
+          amount: entry.amount,
+          description: entry.description,
+          payment_method: entry.paymentMethod,
+          year: selectedYear
+        };
+        console.log('Inserimento nuova spesa con dati:', insertData);
+
         const { data, error } = await supabase
           .from('entries')
-          .insert([{
-            date: entry.date,
-            supplier_id: entry.supplierId,
-            amount: entry.amount,
-            description: entry.description,
-            payment_method: entry.paymentMethod,
-            year: selectedYear
-          }])
+          .insert([insertData])
           .select()
           .single();
 
         if (error) {
-          console.error('Error creating entry:', error);
+          console.error('Errore creazione spesa:', error);
           alert('Errore durante la creazione della spesa: ' + error.message);
           return;
         }
 
         if (!data) {
-          console.error('No data returned after insert');
+          console.error('Nessun dato restituito dopo inserimento');
           alert('Errore: nessun dato restituito dopo l\'inserimento');
           return;
         }
 
+        console.log('Spesa creata:', data);
         const newEntry = {
           id: data.id,
           date: data.date,
@@ -179,25 +191,32 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
         localStorage.setItem('entries', JSON.stringify(updatedEntries));
       }
     } catch (error) {
-      console.error('Error in handleNewEntry:', error);
+      console.error('Errore in handleNewEntry:', error);
       alert('Si è verificato un errore durante il salvataggio della spesa');
     }
   };
 
   const handleDeleteEntry = async (entryToDelete: Entry) => {
-    const { error } = await supabase
-      .from('entries')
-      .delete()
-      .eq('id', entryToDelete.id);
+    try {
+      console.log('Eliminazione spesa:', entryToDelete);
+      const { error } = await supabase
+        .from('entries')
+        .delete()
+        .eq('id', entryToDelete.id);
 
-    if (error) {
-      console.error('Error deleting entry:', error);
-      return;
+      if (error) {
+        console.error('Errore eliminazione spesa:', error);
+        alert('Errore durante l\'eliminazione della spesa: ' + error.message);
+        return;
+      }
+
+      const updatedEntries = entries.filter(entry => entry.id !== entryToDelete.id);
+      setEntries(updatedEntries);
+      localStorage.setItem('entries', JSON.stringify(updatedEntries));
+    } catch (error) {
+      console.error('Errore in handleDeleteEntry:', error);
+      alert('Si è verificato un errore durante l\'eliminazione della spesa');
     }
-
-    const updatedEntries = entries.filter(entry => entry.id !== entryToDelete.id);
-    setEntries(updatedEntries);
-    localStorage.setItem('entries', JSON.stringify(updatedEntries));
   };
 
   const handleEditEntry = (entry: Entry) => {
