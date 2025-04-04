@@ -68,18 +68,41 @@ export default function MonthlyTotals({ entries, suppliers }: MonthlyTotalsProps
       };
     });
 
+    // Debug
+    console.log('Elaborazione entries per totali mensili:', filteredEntries);
+
     // Popola i dati
     filteredEntries.forEach(entry => {
-      const month = new Date(entry.date).getMonth() + 1;
+      // Assicuriamoci che la data sia in formato valido
+      const dateObj = new Date(entry.date);
+      if (isNaN(dateObj.getTime())) {
+        console.error('Data non valida:', entry.date, 'per entry:', entry);
+        return; // Salta questa entry
+      }
+
+      const month = dateObj.getMonth() + 1;
+      console.log(`Entry ${entry.id}: data=${entry.date}, mese=${month}`);
+      
       const monthData = data[month];
+      if (!monthData) {
+        console.error('Mese non trovato:', month, 'per data:', entry.date);
+        return; // Salta questa entry
+      }
+
+      // Convertiamo l'importo in numero per sicurezza
+      const amount = Number(entry.amount);
+      if (isNaN(amount)) {
+        console.error('Importo non valido:', entry.amount, 'per entry:', entry);
+        return; // Salta questa entry
+      }
 
       // Aggiorna i totali per metodo di pagamento
       if (entry.paymentMethod === 'contanti') {
-        monthData.contanti += Number(entry.amount);
+        monthData.contanti += amount;
       } else if (entry.paymentMethod === 'bonifico') {
-        monthData.bonifico += Number(entry.amount);
+        monthData.bonifico += amount;
       }
-      monthData.total += Number(entry.amount);
+      monthData.total += amount;
 
       // Aggiorna i totali per fornitore
       if (!monthData.bySupplier[entry.supplierId]) {
@@ -90,7 +113,7 @@ export default function MonthlyTotals({ entries, suppliers }: MonthlyTotalsProps
           entries: []
         };
       }
-      monthData.bySupplier[entry.supplierId].amount += Number(entry.amount);
+      monthData.bySupplier[entry.supplierId].amount += amount;
       monthData.bySupplier[entry.supplierId].entries.push(entry);
     });
 

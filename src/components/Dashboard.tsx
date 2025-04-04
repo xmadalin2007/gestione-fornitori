@@ -227,13 +227,29 @@ export default function Dashboard({ initialYear, username, onUpdate }: Dashboard
 
   const handleNewEntry = async (entry: Entry) => {
     try {
-      const currentYear = new Date(entry.date).getFullYear().toString();
+      // Validazione e normalizzazione della data
+      let entryDate;
+      try {
+        entryDate = new Date(entry.date);
+        if (isNaN(entryDate.getTime())) {
+          throw new Error(`Data non valida: ${entry.date}`);
+        }
+      } catch (error) {
+        console.error('Errore di formato data:', error);
+        alert('La data inserita non è valida. Usa il formato YYYY-MM-DD.');
+        return;
+      }
+
+      // Formatta la data in ISO format (YYYY-MM-DD)
+      const formattedDate = entryDate.toISOString().split('T')[0];
+      
+      const currentYear = entryDate.getFullYear().toString();
       const entryWithYear = { 
         ...entry, 
+        date: formattedDate, // Data normalizzata
         year: currentYear,
         // Assicuriamoci che tutti i campi siano nel formato corretto
         amount: Number(entry.amount),
-        date: entry.date,
         description: entry.description || '',
         payment_method: entry.paymentMethod,
         supplier_id: entry.supplierId
