@@ -1,7 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+
+interface User {
+  username: string;
+  password: string;
+}
 
 export default function LoginForm() {
   const router = useRouter();
@@ -15,15 +20,15 @@ export default function LoginForm() {
     (_, i) => (new Date().getFullYear() - i).toString()
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
 
     // Verifica le credenziali
     if (username === 'edoardo') {
       // Recupera gli utenti dal localStorage
-      const users = JSON.parse(localStorage.getItem('users') || '[]');
-      const adminUser = users.find((user: any) => user.username === 'edoardo');
+      const users = JSON.parse(localStorage.getItem('users') || '[]') as User[];
+      const adminUser = users.find((user: User) => user.username === 'edoardo');
       
       if (adminUser && password === adminUser.password) {
         localStorage.setItem('isLoggedIn', 'true');
@@ -44,6 +49,13 @@ export default function LoginForm() {
     } else {
       setError('Credenziali non valide');
     }
+  };
+
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    if (name === 'username') setUsername(value);
+    if (name === 'password') setPassword(value);
+    if (name === 'year') setSelectedYear(value);
   };
 
   return (
@@ -68,7 +80,7 @@ export default function LoginForm() {
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={handleInputChange}
               />
             </div>
             <div>
@@ -83,7 +95,7 @@ export default function LoginForm() {
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handleInputChange}
               />
             </div>
           </div>
@@ -97,7 +109,7 @@ export default function LoginForm() {
               name="year"
               className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
               value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
+              onChange={handleInputChange}
             >
               {years.map(year => (
                 <option key={year} value={year}>{year}</option>
