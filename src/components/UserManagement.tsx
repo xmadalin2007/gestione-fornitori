@@ -10,12 +10,13 @@ type User = {
   isAdmin: boolean;
 };
 
-type UserManagementProps = {
-  currentUser: string;
-  onAdminPasswordChange: (newPassword: string) => void;
-};
+interface UserManagementProps {
+  onPasswordChange: (newPassword: string) => void;
+}
 
-export default function UserManagement({ currentUser, onAdminPasswordChange }: UserManagementProps) {
+export default function UserManagement({
+  onPasswordChange
+}: UserManagementProps) {
   const [users, setUsers] = useState<User[]>([
     { id: '1', username: 'edoardo', password: 'edoardO2024', isAdmin: true }
   ]);
@@ -28,7 +29,7 @@ export default function UserManagement({ currentUser, onAdminPasswordChange }: U
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [success, setSuccess] = useState('');
+  const [success, setSuccess] = useState(false);
 
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,10 +67,6 @@ export default function UserManagement({ currentUser, onAdminPasswordChange }: U
 
   const handleDeleteUser = (userId: string) => {
     // Non permettere di eliminare l'utente corrente o l'admin principale
-    if (users.find(u => u.id === userId)?.username === currentUser) {
-      setError('Non puoi eliminare il tuo account');
-      return;
-    }
     if (users.find(u => u.id === userId)?.username === 'edoardo') {
       setError('Non puoi eliminare l\'account amministratore');
       return;
@@ -79,47 +76,25 @@ export default function UserManagement({ currentUser, onAdminPasswordChange }: U
     setError('');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
+    setSuccess(false);
 
     if (newPassword !== confirmPassword) {
       setError('Le password non coincidono');
       return;
     }
 
-    try {
-      // Verifica la password corrente
-      const { data: user, error: fetchError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('username', 'edoardo')
-        .single();
-
-      if (fetchError || !user || user.password !== currentPassword) {
-        setError('Password corrente non valida');
-        return;
-      }
-
-      // Aggiorna la password
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ password: newPassword })
-        .eq('username', 'edoardo');
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      setSuccess('Password aggiornata con successo');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (error) {
-      console.error('Error:', error);
-      setError('Si è verificato un errore durante l\'aggiornamento della password');
+    if (newPassword.length < 8) {
+      setError('La password deve essere di almeno 8 caratteri');
+      return;
     }
+
+    onPasswordChange(newPassword);
+    setSuccess(true);
+    setNewPassword('');
+    setConfirmPassword('');
   };
 
   return (
@@ -131,7 +106,7 @@ export default function UserManagement({ currentUser, onAdminPasswordChange }: U
             <p className="mt-1 text-sm text-gray-500">
               Gestisci gli utenti del sistema e le loro autorizzazioni.
             </p>
-            {currentUser === 'edoardo' && (
+            {users.find(u => u.username === 'edoardo') && (
               <div className="space-y-6">
                 {!isChangingPassword ? (
                   <button
@@ -142,20 +117,7 @@ export default function UserManagement({ currentUser, onAdminPasswordChange }: U
                   </button>
                 ) : (
                   <div className="max-w-md mx-auto">
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                      <div>
-                        <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
-                          Password Corrente
-                        </label>
-                        <input
-                          type="password"
-                          id="currentPassword"
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                          required
-                        />
-                      </div>
+                    <form onSubmit={handleSubmit} className="space-y-6">
                       <div>
                         <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
                           Nuova Password
@@ -165,34 +127,42 @@ export default function UserManagement({ currentUser, onAdminPasswordChange }: U
                           id="newPassword"
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                           required
                         />
                       </div>
+
                       <div>
                         <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                          Conferma Nuova Password
+                          Conferma Password
                         </label>
                         <input
                           type="password"
                           id="confirmPassword"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                           required
                         />
                       </div>
+
                       {error && (
-                        <div className="text-red-600 text-sm">{error}</div>
+                        <div className="text-red-600 text-sm">
+                          {error}
+                        </div>
                       )}
+
                       {success && (
-                        <div className="text-green-600 text-sm">{success}</div>
+                        <div className="text-green-600 text-sm">
+                          Password aggiornata con successo!
+                        </div>
                       )}
+
                       <button
                         type="submit"
-                        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       >
-                        Cambia Password
+                        Aggiorna Password
                       </button>
                     </form>
                   </div>

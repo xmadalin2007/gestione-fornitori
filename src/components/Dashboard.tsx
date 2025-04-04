@@ -8,7 +8,6 @@ import UserManagement from '@/components/UserManagement';
 import ExportData from '@/components/ExportData';
 import { useRouter } from 'next/navigation';
 import type { Supplier } from '@/components/SupplierManagement';
-import { supabase } from '@/lib/supabase';
 
 export type Entry = {
   id: string;
@@ -40,50 +39,25 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     return years;
   });
 
-  // Carica i fornitori da Supabase
+  // Carica i fornitori dal localStorage
   useEffect(() => {
-    const loadSuppliers = async () => {
-      const { data, error } = await supabase
-        .from('suppliers')
-        .select('*')
-        .order('name');
-      
-      if (error) {
-        console.error('Error loading suppliers:', error);
-        return;
+    const loadSuppliers = () => {
+      const storedSuppliers = localStorage.getItem('suppliers');
+      if (storedSuppliers) {
+        setSuppliers(JSON.parse(storedSuppliers));
       }
-
-      setSuppliers(data.map(supplier => ({
-        id: supplier.id,
-        name: supplier.name,
-        defaultPaymentMethod: supplier.default_payment_method
-      })));
     };
 
     loadSuppliers();
   }, []);
 
-  // Carica le spese da Supabase
+  // Carica le spese dal localStorage
   useEffect(() => {
-    const loadEntries = async () => {
-      const { data, error } = await supabase
-        .from('entries')
-        .select('*')
-        .order('date', { ascending: false });
-      
-      if (error) {
-        console.error('Error loading entries:', error);
-        return;
+    const loadEntries = () => {
+      const storedEntries = localStorage.getItem('entries');
+      if (storedEntries) {
+        setEntries(JSON.parse(storedEntries));
       }
-
-      setEntries(data.map(entry => ({
-        id: entry.id,
-        date: entry.date,
-        supplierId: entry.supplier_id,
-        amount: entry.amount,
-        description: entry.description,
-        paymentMethod: entry.payment_method
-      })));
     };
 
     loadEntries();
@@ -94,75 +68,32 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     router.push('/');
   };
 
-  const handleNewEntry = async (entry: Entry) => {
+  const handleNewEntry = (entry: Entry) => {
     if (editingEntry) {
       // Modifica di una spesa esistente
-      const { error } = await supabase
-        .from('entries')
-        .update({
-          date: entry.date,
-          supplier_id: entry.supplierId,
-          amount: entry.amount,
-          description: entry.description,
-          payment_method: entry.paymentMethod
-        })
-        .eq('id', editingEntry.id);
-
-      if (error) {
-        console.error('Error updating entry:', error);
-        return;
-      }
-
       const updatedEntries = entries.map(e => 
         e.id === editingEntry.id ? entry : e
       );
       setEntries(updatedEntries);
+      localStorage.setItem('entries', JSON.stringify(updatedEntries));
       setEditingEntry(null);
     } else {
       // Aggiunta di una nuova spesa
-      const { data, error } = await supabase
-        .from('entries')
-        .insert([{
-          date: entry.date,
-          supplier_id: entry.supplierId,
-          amount: entry.amount,
-          description: entry.description,
-          payment_method: entry.paymentMethod
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating entry:', error);
-        return;
-      }
-
       const newEntry = {
-        id: data.id,
-        date: data.date,
-        supplierId: data.supplier_id,
-        amount: data.amount,
-        description: data.description,
-        paymentMethod: data.payment_method
+        ...entry,
+        id: Math.random().toString(36).substr(2, 9)
       };
 
-      setEntries([newEntry, ...entries]);
+      const updatedEntries = [newEntry, ...entries];
+      setEntries(updatedEntries);
+      localStorage.setItem('entries', JSON.stringify(updatedEntries));
     }
   };
 
-  const handleDeleteEntry = async (entryToDelete: Entry) => {
-    const { error } = await supabase
-      .from('entries')
-      .delete()
-      .eq('id', entryToDelete.id);
-
-    if (error) {
-      console.error('Error deleting entry:', error);
-      return;
-    }
-
+  const handleDeleteEntry = (entryToDelete: Entry) => {
     const updatedEntries = entries.filter(entry => entry.id !== entryToDelete.id);
     setEntries(updatedEntries);
+    localStorage.setItem('entries', JSON.stringify(updatedEntries));
   };
 
   const handleEditEntry = (entry: Entry) => {
@@ -174,147 +105,110 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     setEditingEntry(null);
   };
 
-  const handleSupplierUpdate = async (updatedSuppliers: Supplier[]) => {
-    // Aggiorna i fornitori su Supabase
-    const { error } = await supabase
-      .from('suppliers')
-      .upsert(
-        updatedSuppliers.map(supplier => ({
-          id: supplier.id,
-          name: supplier.name,
-          default_payment_method: supplier.defaultPaymentMethod
-        }))
-      );
-
-    if (error) {
-      console.error('Error updating suppliers:', error);
-      return;
-    }
-
+  const handleSupplierUpdate = (updatedSuppliers: Supplier[]) => {
     setSuppliers(updatedSuppliers);
+    localStorage.setItem('suppliers', JSON.stringify(updatedSuppliers));
   };
 
-  const handleAdminPasswordChange = async (newPassword: string) => {
-    const { error } = await supabase
-      .from('users')
-      .update({ password: newPassword })
-      .eq('username', 'edoardo');
-
-    if (error) {
-      console.error('Error updating admin password:', error);
-    }
+  const handleAdminPasswordChange = (newPassword: string) => {
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const updatedUsers = users.map((user: any) => 
+      user.username === 'edoardo' ? { ...user, password: newPassword } : user
+    );
+    localStorage.setItem('users', JSON.stringify(updatedUsers));
   };
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <div className="bg-white shadow">
+      <nav className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
-              <div className="flex space-x-8">
+              <div className="flex-shrink-0 flex items-center">
+                <h1 className="text-xl font-bold text-gray-800">Gestione Fornitori</h1>
+              </div>
+              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                 <button
                   onClick={() => setActiveTab('spese')}
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  className={`${
                     activeTab === 'spese'
-                      ? 'border-indigo-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                      ? 'border-blue-500 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
                 >
-                  Registra Spese
+                  Spese
                 </button>
                 <button
                   onClick={() => setActiveTab('fornitori')}
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  className={`${
                     activeTab === 'fornitori'
-                      ? 'border-indigo-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                      ? 'border-blue-500 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
                 >
-                  Gestione Fornitori
+                  Fornitori
                 </button>
-                <button
-                  onClick={() => setActiveTab('utenti')}
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    activeTab === 'utenti'
-                      ? 'border-indigo-500 text-gray-900'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Gestione Utenti
-                </button>
+                {username === 'edoardo' && (
+                  <button
+                    onClick={() => setActiveTab('utenti')}
+                    className={`${
+                      activeTab === 'utenti'
+                        ? 'border-blue-500 text-gray-900'
+                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                    } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                  >
+                    Gestione Utenti
+                  </button>
+                )}
               </div>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-4">
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
-                className="block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
               >
                 {years.map(year => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
-              
-              <ExportData 
-                entries={entries.filter(entry => entry.date.startsWith(selectedYear))}
-                suppliers={suppliers}
-                selectedYear={selectedYear}
-              />
-
+              <ExportData entries={entries} suppliers={suppliers} />
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Logout
               </button>
             </div>
           </div>
         </div>
-      </div>
+      </nav>
 
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {activeTab === 'spese' && (
-          <div className="px-4 py-6 sm:px-0">
-            <div className="border-4 border-dashed border-gray-200 rounded-lg p-4">
-              <SupplierForm
-                suppliers={suppliers}
-                onSubmit={handleNewEntry}
-                editingEntry={editingEntry}
-                onCancelEdit={handleCancelEdit}
-                selectedYear={selectedYear}
-              />
-              <div className="mt-8">
-                <SupplierTable
-                  entries={entries.filter(entry => entry.date.startsWith(selectedYear))}
-                  suppliers={suppliers}
-                  onDeleteEntry={handleDeleteEntry}
-                  onEditEntry={handleEditEntry}
-                />
-              </div>
-            </div>
+          <div className="space-y-6">
+            <SupplierForm
+              suppliers={suppliers}
+              onSubmit={handleNewEntry}
+              editingEntry={editingEntry}
+              onCancel={handleCancelEdit}
+            />
+            <SupplierTable
+              entries={entries}
+              suppliers={suppliers}
+              onEdit={handleEditEntry}
+              onDelete={handleDeleteEntry}
+            />
           </div>
         )}
-
         {activeTab === 'fornitori' && (
-          <div className="px-4 py-6 sm:px-0">
-            <div className="border-4 border-dashed border-gray-200 rounded-lg p-4">
-              <SupplierManagement
-                suppliers={suppliers}
-                onUpdateSuppliers={handleSupplierUpdate}
-              />
-            </div>
-          </div>
+          <SupplierManagement
+            suppliers={suppliers}
+            onUpdate={handleSupplierUpdate}
+          />
         )}
-
-        {activeTab === 'utenti' && (
-          <div className="px-4 py-6 sm:px-0">
-            <div className="border-4 border-dashed border-gray-200 rounded-lg p-4">
-              <UserManagement 
-                currentUser={username}
-                onAdminPasswordChange={handleAdminPasswordChange}
-              />
-            </div>
-          </div>
+        {activeTab === 'utenti' && username === 'edoardo' && (
+          <UserManagement onPasswordChange={handleAdminPasswordChange} />
         )}
       </div>
     </div>

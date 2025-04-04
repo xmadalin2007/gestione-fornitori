@@ -4,15 +4,19 @@ import { useState, useMemo, useEffect } from 'react';
 import type { Supplier } from './SupplierManagement';
 import type { Entry } from '@/components/Dashboard';
 
-type SupplierFormProps = {
+interface SupplierFormProps {
   suppliers: Supplier[];
   onSubmit: (entry: Entry) => void;
   editingEntry: Entry | null;
-  onCancelEdit: () => void;
-  selectedYear: string;
-};
+  onCancel: () => void;
+}
 
-export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCancelEdit, selectedYear }: SupplierFormProps) {
+export default function SupplierForm({
+  suppliers,
+  onSubmit,
+  editingEntry,
+  onCancel
+}: SupplierFormProps) {
   const today = new Date();
   const formattedToday = today.toLocaleDateString('it-IT').split('/').join('-');
   const [date, setDate] = useState(formattedToday);
@@ -182,7 +186,7 @@ export default function SupplierForm({ suppliers, onSubmit, editingEntry, onCanc
               <>
                 <button
                   type="button"
-                  onClick={onCancelEdit}
+                  onClick={onCancel}
                   className="w-1/2 inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Annulla

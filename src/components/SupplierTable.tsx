@@ -4,14 +4,19 @@ import { useMemo } from 'react';
 import type { Supplier } from './SupplierManagement';
 import type { Entry } from '@/components/Dashboard';
 
-type SupplierTableProps = {
+interface SupplierTableProps {
   entries: Entry[];
   suppliers: Supplier[];
-  onDeleteEntry: (entry: Entry) => void;
-  onEditEntry: (entry: Entry) => void;
-};
+  onEdit: (entry: Entry) => void;
+  onDelete: (entry: Entry) => void;
+}
 
-export default function SupplierTable({ entries, suppliers, onDeleteEntry, onEditEntry }: SupplierTableProps) {
+export default function SupplierTable({
+  entries,
+  suppliers,
+  onEdit,
+  onDelete
+}: SupplierTableProps) {
   // Raggruppa le spese per fornitore
   const entriesBySupplier = useMemo(() => {
     return entries.reduce((acc, entry) => {
@@ -87,13 +92,13 @@ export default function SupplierTable({ entries, suppliers, onDeleteEntry, onEdi
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                         <button
-                          onClick={() => onEditEntry(entry)}
+                          onClick={() => onEdit(entry)}
                           className="text-blue-600 hover:text-blue-900"
                         >
                           Modifica
                         </button>
                         <button
-                          onClick={() => onDeleteEntry(entry)}
+                          onClick={() => onDelete(entry)}
                           className="text-red-600 hover:text-red-900"
                         >
                           Elimina
