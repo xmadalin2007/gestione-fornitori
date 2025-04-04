@@ -6,6 +6,7 @@ import SupplierTable from '@/components/SupplierTable';
 import SupplierManagement from '@/components/SupplierManagement';
 import UserManagement from '@/components/UserManagement';
 import ExportData from '@/components/ExportData';
+import MonthlyTotals from './MonthlyTotals';
 import { useRouter } from 'next/navigation';
 import type { Supplier } from '@/components/SupplierManagement';
 import { createClient } from '@supabase/supabase-js';
@@ -77,9 +78,10 @@ export interface Entry {
 export interface DashboardProps {
   initialYear: string;
   username: string;
+  onUpdate?: () => void;
 }
 
-export default function Dashboard({ initialYear, username }: DashboardProps) {
+export default function Dashboard({ initialYear, username, onUpdate }: DashboardProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'spese' | 'fornitori' | 'utenti'>('spese');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -94,7 +96,7 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
     }
     return years;
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Carica i fornitori da Supabase
@@ -119,12 +121,24 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
           return;
         }
 
+        if (!data || data.length === 0) {
+          console.log('Nessun fornitore trovato in Supabase');
+          // Carica da localStorage come fallback
+          const localSuppliers = localStorage.getItem('suppliers');
+          if (localSuppliers) {
+            console.log('Caricamento fornitori da localStorage come fallback');
+            setSuppliers(JSON.parse(localSuppliers));
+          }
+          return;
+        }
+
         console.log('Fornitori caricati da Supabase:', data);
         const formattedSuppliers = data.map(supplier => ({
           id: supplier.id,
           name: supplier.name,
           defaultPaymentMethod: supplier.default_payment_method as 'contanti' | 'bonifico'
         }));
+        console.log('Fornitori formattati:', formattedSuppliers);
         setSuppliers(formattedSuppliers);
         // Aggiorna anche localStorage
         localStorage.setItem('suppliers', JSON.stringify(formattedSuppliers));
@@ -171,7 +185,19 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
       }
 
       console.log('Spese caricate:', entriesData);
-      setEntries(entriesData || []);
+      
+      // Converti i dati nel formato corretto
+      const formattedEntries = (entriesData || []).map(entry => ({
+        id: entry.id,
+        date: entry.date,
+        supplierId: entry.supplier_id,
+        amount: entry.amount,
+        description: entry.description || '',
+        paymentMethod: entry.payment_method,
+        year: entry.year
+      }));
+
+      setEntries(formattedEntries);
       setError(null);
     } catch (err) {
       console.error('Errore nel caricamento delle spese:', err);
@@ -242,7 +268,15 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
         }
 
         console.log('Spesa aggiornata con successo:', updatedEntry);
-        setEntries(entries.map(e => e.id === editingEntry.id ? entryWithYear : e));
+        setEntries(entries.map(e => e.id === editingEntry.id ? {
+          id: updatedEntry.id,
+          date: updatedEntry.date,
+          supplierId: updatedEntry.supplier_id,
+          amount: updatedEntry.amount,
+          description: updatedEntry.description || '',
+          paymentMethod: updatedEntry.payment_method,
+          year: updatedEntry.year
+        } : e));
       } else {
         console.log('Creazione nuova spesa:', entryWithYear);
         const { data: newEntry, error: insertError } = await supabase
@@ -271,7 +305,15 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
 
         console.log('Nuova spesa creata con successo:', newEntry);
         if (newEntry.year === selectedYear) {
-          setEntries([newEntry, ...entries]);
+          setEntries([{
+            id: newEntry.id,
+            date: newEntry.date,
+            supplierId: newEntry.supplier_id,
+            amount: newEntry.amount,
+            description: newEntry.description || '',
+            paymentMethod: newEntry.payment_method,
+            year: newEntry.year
+          }, ...entries]);
         }
       }
 
@@ -459,13 +501,16 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
 
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {activeTab === 'spese' && (
-          <div className="space-y-6">
+          <div className="space-y-8">
             <SupplierForm
               suppliers={suppliers}
               onSubmit={handleNewEntry}
               editingEntry={editingEntry}
-              onCancel={handleCancel}
+              onCancel={() => setEditingEntry(null)}
             />
+            
+            <MonthlyTotals entries={entries} suppliers={suppliers} />
+
             <SupplierTable
               entries={entries}
               suppliers={suppliers}
