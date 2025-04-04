@@ -1,280 +1,308 @@
 'use client';
 
-import React, { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
-type User = {
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+interface User {
   id: string;
   username: string;
-  password: string;
-  isAdmin: boolean;
-};
+  is_admin: boolean;
+  created_at?: string;
+}
 
 interface UserManagementProps {
   onPasswordChange: (newPassword: string) => void;
 }
 
-export default function UserManagement({
-  onPasswordChange
-}: UserManagementProps) {
-  const [users, setUsers] = useState<User[]>([
-    { id: '1', username: 'edoardo', password: 'edoardO2024', isAdmin: true }
-  ]);
+export default function UserManagement({ onPasswordChange }: UserManagementProps) {
+  const [users, setUsers] = useState<User[]>([]);
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
-  const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
-  const [error, setError] = useState('');
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const handleAddUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+  // Carica gli utenti da Supabase
+  const loadUsers = async () => {
+    try {
+      console.log('Tentativo di caricamento utenti...');
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('username');
 
-    // Validazione
-    if (newUsername.length < 3) {
-      setError('Il nome utente deve essere di almeno 3 caratteri');
-      return;
-    }
-    if (newPassword.length < 6) {
-      setError('La password deve essere di almeno 6 caratteri');
-      return;
-    }
-    if (users.some(user => user.username === newUsername)) {
-      setError('Questo nome utente esiste già');
-      return;
-    }
-
-    // Aggiungi nuovo utente
-    setUsers([
-      ...users,
-      {
-        id: Math.random().toString(36).substr(2, 9),
-        username: newUsername,
-        password: newPassword,
-        isAdmin: false
+      if (error) {
+        console.error('Errore nel caricamento utenti:', error);
+        setError('Errore nel caricamento utenti: ' + error.message);
+        return;
       }
-    ]);
 
-    // Reset form
-    setNewUsername('');
-    setNewPassword('');
-  };
-
-  const handleDeleteUser = (userId: string) => {
-    // Non permettere di eliminare l'utente corrente o l'admin principale
-    if (users.find(u => u.id === userId)?.username === 'edoardo') {
-      setError('Non puoi eliminare l\'account amministratore');
-      return;
+      if (data) {
+        console.log('Utenti caricati con successo:', data);
+        setUsers(data);
+      }
+    } catch (err) {
+      console.error('Errore imprevisto nel caricamento:', err);
+      setError('Errore imprevisto nel caricamento utenti');
     }
-
-    setUsers(users.filter(user => user.id !== userId));
-    setError('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSuccess(false);
+    setError(null);
+    setSuccess(null);
 
-    if (newPassword !== confirmPassword) {
-      setError('Le password non coincidono');
+    if (!newUsername || !newPassword) {
+      setError('Username e password sono obbligatori');
       return;
     }
 
-    if (newPassword.length < 8) {
-      setError('La password deve essere di almeno 8 caratteri');
+    try {
+      console.log('Tentativo di aggiunta nuovo utente:', { username: newUsername });
+      
+      // Verifica che l'utente non esista già
+      const { data: existingUsers, error: checkError } = await supabase
+        .from('users')
+        .select('username')
+        .eq('username', newUsername);
+
+      if (checkError) {
+        console.error('Errore nella verifica utente:', checkError);
+        setError('Errore nella verifica utente: ' + checkError.message);
+        return;
+      }
+
+      if (existingUsers && existingUsers.length > 0) {
+        setError('Username già in uso');
+        return;
+      }
+
+      // Inserisci il nuovo utente
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert([
+          {
+            id: crypto.randomUUID(),
+            username: newUsername,
+            password: newPassword,
+            is_admin: false
+          }
+        ]);
+
+      if (insertError) {
+        console.error('Errore nell\'inserimento utente:', insertError);
+        setError('Errore nel salvataggio utente: ' + insertError.message);
+        return;
+      }
+
+      console.log('Utente creato con successo');
+      setSuccess('Utente aggiunto con successo');
+      setNewUsername('');
+      setNewPassword('');
+      loadUsers();
+
+    } catch (err) {
+      console.error('Errore imprevisto:', err);
+      setError('Errore imprevisto durante il salvataggio');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      console.log('Tentativo di eliminazione utente:', userId);
+      
+      const { error: deleteError } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+
+      if (deleteError) {
+        console.error('Errore nell\'eliminazione utente:', deleteError);
+        setError('Errore nell\'eliminazione utente: ' + deleteError.message);
+        return;
+      }
+
+      console.log('Utente eliminato con successo');
+      setSuccess('Utente eliminato con successo');
+      loadUsers();
+    } catch (err) {
+      console.error('Errore imprevisto:', err);
+      setError('Errore nell\'eliminazione utente');
+    }
+  };
+
+  const handleChangeAdminPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    if (!adminPassword) {
+      setError('La password non può essere vuota');
       return;
     }
 
-    onPasswordChange(newPassword);
-    setSuccess(true);
-    setNewPassword('');
-    setConfirmPassword('');
+    try {
+      await onPasswordChange(adminPassword);
+      setSuccess('Password amministratore aggiornata con successo');
+      setAdminPassword('');
+    } catch (err) {
+      console.error('Errore nel cambio password:', err);
+      setError('Errore nel cambio password');
+    }
   };
 
   return (
     <div className="space-y-6">
-      <div className="bg-white shadow px-4 py-5 sm:rounded-lg sm:p-6">
-        <div className="md:grid md:grid-cols-3 md:gap-6">
-          <div className="md:col-span-1">
-            <h3 className="text-lg font-medium leading-6 text-gray-900">Gestione Utenti</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Gestisci gli utenti del sistema e le loro autorizzazioni.
-            </p>
-            {users.find(u => u.username === 'edoardo') && (
-              <div className="space-y-6">
-                {!isChangingPassword ? (
-                  <button
-                    onClick={() => setIsChangingPassword(true)}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    Modifica Password Admin
-                  </button>
-                ) : (
-                  <div className="max-w-md mx-auto">
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                      <div>
-                        <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
-                          Nuova Password
-                        </label>
-                        <input
-                          type="password"
-                          id="newPassword"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                          Conferma Password
-                        </label>
-                        <input
-                          type="password"
-                          id="confirmPassword"
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                          required
-                        />
-                      </div>
-
-                      {error && (
-                        <div className="text-red-600 text-sm">
-                          {error}
-                        </div>
-                      )}
-
-                      {success && (
-                        <div className="text-green-600 text-sm">
-                          Password aggiornata con successo!
-                        </div>
-                      )}
-
-                      <button
-                        type="submit"
-                        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        Aggiorna Password
-                      </button>
-                    </form>
-                  </div>
-                )}
-              </div>
-            )}
+      <div className="bg-white p-6 rounded-lg shadow">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
+          Aggiungi Nuovo Utente
+        </h3>
+        <form onSubmit={handleAddUser} className="space-y-4">
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+              Username
+            </label>
+            <input
+              type="text"
+              name="username"
+              id="username"
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              required
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
           </div>
-          <div className="mt-5 md:mt-0 md:col-span-2">
-            <form onSubmit={handleAddUser}>
-              <div className="grid grid-cols-6 gap-6">
-                <div className="col-span-6 sm:col-span-3">
-                  <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                    Nome utente
-                  </label>
-                  <input
-                    type="text"
-                    name="username"
-                    id="username"
-                    value={newUsername}
-                    onChange={(e) => setNewUsername(e.target.value)}
-                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-
-                <div className="col-span-6 sm:col-span-3">
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    name="password"
-                    id="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-              </div>
-
-              {error && (
-                <div className="mt-4 text-sm text-red-600">
-                  {error}
-                </div>
-              )}
-
-              <div className="mt-4">
-                <button
-                  type="submit"
-                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Aggiungi Utente
-                </button>
-              </div>
-            </form>
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
+            <input
+              type="password"
+              name="password"
+              id="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
           </div>
-        </div>
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            Aggiungi Utente
+          </button>
+        </form>
       </div>
 
-      <div className="bg-white shadow sm:rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            Utenti Registrati
-          </h3>
-          <div className="mt-4">
-            <div className="flex flex-col">
-              <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                  <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Username
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Ruolo
-                          </th>
-                          <th scope="col" className="relative px-6 py-3">
-                            <span className="sr-only">Azioni</span>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {users.map((user) => (
-                          <tr key={user.id}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {user.username}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {user.isAdmin ? 'Amministratore' : 'Utente'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              {user.username !== 'edoardo' && (
-                                <button
-                                  onClick={() => handleDeleteUser(user.id)}
-                                  className="text-red-600 hover:text-red-900"
-                                >
-                                  Elimina
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
+      <div className="bg-white p-6 rounded-lg shadow">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
+          Cambia Password Amministratore
+        </h3>
+        <form onSubmit={handleChangeAdminPassword} className="space-y-4">
+          <div>
+            <label htmlFor="admin-password" className="block text-sm font-medium text-gray-700">
+              Nuova Password
+            </label>
+            <input
+              type="password"
+              name="admin-password"
+              id="admin-password"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              required
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            Aggiorna Password
+          </button>
+        </form>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border-l-4 border-red-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {success && (
+        <div className="bg-green-50 border-l-4 border-green-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-green-700">{success}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white p-6 rounded-lg shadow">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
+          Utenti Registrati
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead>
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Username
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ruolo
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Azioni
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {users.map((user) => (
+                <tr key={user.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {user.username}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {user.is_admin ? 'Amministratore' : 'Utente'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    {!user.is_admin && (
+                      <button
+                        onClick={() => handleDeleteUser(user.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Elimina
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

@@ -98,10 +98,10 @@ export default function MonthlyTotals({ entries, suppliers }: MonthlyTotalsProps
   }, [filteredEntries, suppliersMap]);
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Totali Mensili</h2>
-        <div className="w-96">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Totali Mensili</h2>
+        <div className="w-full sm:w-96">
           <SearchBar onSearch={setSearchQuery} />
         </div>
       </div>
@@ -114,38 +114,56 @@ export default function MonthlyTotals({ entries, suppliers }: MonthlyTotalsProps
 
         return (
           <div key={monthName} className="bg-white shadow rounded-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-900">{monthName}</h3>
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-900">{monthName}</h3>
             </div>
             
-            <div className="px-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="p-4 sm:p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
                   <h4 className="text-sm font-medium text-gray-500">Contanti</h4>
-                  <p className="text-2xl font-bold text-blue-600">{monthData.contanti.toFixed(2)} €</p>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-600">{monthData.contanti.toFixed(2)} €</p>
                 </div>
-                <div className="bg-green-50 p-4 rounded-lg">
+                <div className="bg-green-50 p-3 sm:p-4 rounded-lg">
                   <h4 className="text-sm font-medium text-gray-500">Bonifico</h4>
-                  <p className="text-2xl font-bold text-green-600">{monthData.bonifico.toFixed(2)} €</p>
+                  <p className="text-xl sm:text-2xl font-bold text-green-600">{monthData.bonifico.toFixed(2)} €</p>
                 </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
+                <div className="bg-purple-50 p-3 sm:p-4 rounded-lg sm:col-span-2 lg:col-span-1">
                   <h4 className="text-sm font-medium text-gray-500">Totale Mese</h4>
-                  <p className="text-2xl font-bold text-purple-600">{monthData.total.toFixed(2)} €</p>
+                  <p className="text-xl sm:text-2xl font-bold text-purple-600">{monthData.total.toFixed(2)} €</p>
                 </div>
               </div>
 
               <div className="mt-6">
-                <h4 className="text-lg font-medium text-gray-900 mb-4">Dettaglio per Fornitore</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Dettaglio per Fornitore</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {Object.entries(monthData.bySupplier).map(([supplierId, data]) => (
-                    <div key={supplierId} className="bg-gray-50 p-4 rounded-lg">
-                      <h5 className="text-sm font-medium text-gray-500">{data.name}</h5>
-                      <p className="text-lg font-semibold text-gray-900">{data.amount.toFixed(2)} €</p>
-                      {data.entries.map(entry => (
-                        <div key={entry.id} className="mt-2 text-sm text-gray-500">
-                          {entry.description || 'Nessuna descrizione'} - {new Date(entry.date).toLocaleDateString()} - {entry.paymentMethod}
-                        </div>
-                      ))}
+                    <div key={supplierId} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-2">
+                        <h5 className="text-sm font-medium text-gray-700">{data.name}</h5>
+                        <p className="text-base sm:text-lg font-semibold text-gray-900">{data.amount.toFixed(2)} €</p>
+                      </div>
+                      <div className="space-y-2">
+                        {data.entries.map(entry => (
+                          <div key={entry.id} className="text-sm text-gray-600 bg-white rounded p-2 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                              <span className="font-medium">{entry.description || 'Nessuna descrizione'}</span>
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="bg-gray-100 px-2 py-1 rounded">
+                                  {new Date(entry.date).toLocaleDateString()}
+                                </span>
+                                <span className={`px-2 py-1 rounded ${
+                                  entry.paymentMethod === 'contanti' 
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : 'bg-green-100 text-green-700'
+                                }`}>
+                                  {entry.paymentMethod}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
