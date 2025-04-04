@@ -202,32 +202,74 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
   const handleNewEntry = async (entry: Entry) => {
     try {
       const currentYear = new Date(entry.date).getFullYear().toString();
-      const entryWithYear = { ...entry, year: currentYear };
+      const entryWithYear = { 
+        ...entry, 
+        year: currentYear,
+        // Assicuriamoci che tutti i campi siano nel formato corretto
+        amount: Number(entry.amount),
+        date: entry.date,
+        description: entry.description || '',
+        payment_method: entry.paymentMethod,
+        supplier_id: entry.supplierId
+      };
+      
+      console.log('Dati spesa preparati per Supabase:', entryWithYear);
       
       if (editingEntry) {
         console.log('Aggiornamento spesa esistente:', entryWithYear);
-        const { error: updateError } = await supabase
+        const { data: updatedEntry, error: updateError } = await supabase
           .from('entries')
-          .update(entryWithYear)
-          .eq('id', editingEntry.id);
+          .update({
+            date: entryWithYear.date,
+            supplier_id: entryWithYear.supplier_id,
+            amount: entryWithYear.amount,
+            description: entryWithYear.description,
+            payment_method: entryWithYear.payment_method,
+            year: entryWithYear.year
+          })
+          .eq('id', editingEntry.id)
+          .select()
+          .single();
 
         if (updateError) {
+          console.error('Errore dettagliato Supabase (update):', {
+            message: updateError.message,
+            details: updateError.details,
+            hint: updateError.hint,
+            code: updateError.code
+          });
           throw updateError;
         }
 
+        console.log('Spesa aggiornata con successo:', updatedEntry);
         setEntries(entries.map(e => e.id === editingEntry.id ? entryWithYear : e));
       } else {
         console.log('Creazione nuova spesa:', entryWithYear);
         const { data: newEntry, error: insertError } = await supabase
           .from('entries')
-          .insert([entryWithYear])
+          .insert([{
+            id: crypto.randomUUID(),
+            date: entryWithYear.date,
+            supplier_id: entryWithYear.supplier_id,
+            amount: entryWithYear.amount,
+            description: entryWithYear.description,
+            payment_method: entryWithYear.payment_method,
+            year: entryWithYear.year
+          }])
           .select()
           .single();
 
         if (insertError) {
+          console.error('Errore dettagliato Supabase (insert):', {
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint,
+            code: insertError.code
+          });
           throw insertError;
         }
 
+        console.log('Nuova spesa creata con successo:', newEntry);
         if (newEntry.year === selectedYear) {
           setEntries([newEntry, ...entries]);
         }
@@ -239,8 +281,10 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
         allEntries.push(entryWithYear);
       }
       localStorage.setItem('entries', JSON.stringify(allEntries));
+      console.log('Spese salvate in localStorage come backup');
       
       setEditingEntry(null);
+      console.log('Form resettato con successo');
     } catch (err) {
       console.error('Errore nel salvare la spesa:', err);
       alert('Errore nel salvare la spesa. Riprova.');
