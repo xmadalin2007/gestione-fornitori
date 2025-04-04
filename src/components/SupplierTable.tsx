@@ -8,7 +8,7 @@ interface SupplierTableProps {
   entries: Entry[];
   suppliers: Supplier[];
   onEdit: (entry: Entry) => void;
-  onDelete: (entryId: Entry) => void;
+  onDelete: (entry: Entry) => void;
 }
 
 export default function SupplierTable({
