@@ -111,61 +111,76 @@ export default function Dashboard({ initialYear, username }: DashboardProps) {
   };
 
   const handleNewEntry = async (entry: Entry) => {
-    if (editingEntry) {
-      // Modifica di una spesa esistente
-      const { error } = await supabase
-        .from('entries')
-        .update({
-          date: entry.date,
-          supplier_id: entry.supplierId,
-          amount: entry.amount,
-          description: entry.description,
-          payment_method: entry.paymentMethod
-        })
-        .eq('id', editingEntry.id);
+    try {
+      if (editingEntry) {
+        // Modifica di una spesa esistente
+        const { error } = await supabase
+          .from('entries')
+          .update({
+            date: entry.date,
+            supplier_id: entry.supplierId,
+            amount: entry.amount,
+            description: entry.description,
+            payment_method: entry.paymentMethod,
+            year: selectedYear
+          })
+          .eq('id', editingEntry.id);
 
-      if (error) {
-        console.error('Error updating entry:', error);
-        return;
+        if (error) {
+          console.error('Error updating entry:', error);
+          alert('Errore durante l\'aggiornamento della spesa: ' + error.message);
+          return;
+        }
+
+        const updatedEntries = entries.map(e => 
+          e.id === editingEntry.id ? entry : e
+        );
+        setEntries(updatedEntries);
+        localStorage.setItem('entries', JSON.stringify(updatedEntries));
+        setEditingEntry(null);
+      } else {
+        // Aggiunta di una nuova spesa
+        const { data, error } = await supabase
+          .from('entries')
+          .insert([{
+            date: entry.date,
+            supplier_id: entry.supplierId,
+            amount: entry.amount,
+            description: entry.description,
+            payment_method: entry.paymentMethod,
+            year: selectedYear
+          }])
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating entry:', error);
+          alert('Errore durante la creazione della spesa: ' + error.message);
+          return;
+        }
+
+        if (!data) {
+          console.error('No data returned after insert');
+          alert('Errore: nessun dato restituito dopo l\'inserimento');
+          return;
+        }
+
+        const newEntry = {
+          id: data.id,
+          date: data.date,
+          supplierId: data.supplier_id,
+          amount: data.amount,
+          description: data.description,
+          paymentMethod: data.payment_method
+        };
+
+        const updatedEntries = [newEntry, ...entries];
+        setEntries(updatedEntries);
+        localStorage.setItem('entries', JSON.stringify(updatedEntries));
       }
-
-      const updatedEntries = entries.map(e => 
-        e.id === editingEntry.id ? entry : e
-      );
-      setEntries(updatedEntries);
-      localStorage.setItem('entries', JSON.stringify(updatedEntries));
-      setEditingEntry(null);
-    } else {
-      // Aggiunta di una nuova spesa
-      const { data, error } = await supabase
-        .from('entries')
-        .insert([{
-          date: entry.date,
-          supplier_id: entry.supplierId,
-          amount: entry.amount,
-          description: entry.description,
-          payment_method: entry.paymentMethod
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating entry:', error);
-        return;
-      }
-
-      const newEntry = {
-        id: data.id,
-        date: data.date,
-        supplierId: data.supplier_id,
-        amount: data.amount,
-        description: data.description,
-        paymentMethod: data.payment_method
-      };
-
-      const updatedEntries = [newEntry, ...entries];
-      setEntries(updatedEntries);
-      localStorage.setItem('entries', JSON.stringify(updatedEntries));
+    } catch (error) {
+      console.error('Error in handleNewEntry:', error);
+      alert('Si è verificato un errore durante il salvataggio della spesa');
     }
   };
 
