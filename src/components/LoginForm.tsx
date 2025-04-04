@@ -21,6 +21,8 @@ export default function LoginForm() {
     setError('');
 
     try {
+      console.log('Tentativo di login con:', { username });
+
       // Verifica le credenziali
       const { data: user, error: userError } = await supabase
         .from('users')
@@ -28,13 +30,22 @@ export default function LoginForm() {
         .eq('username', username)
         .single();
 
-      if (userError || !user) {
+      if (userError) {
         console.error('Errore nel login:', userError);
-        setError('Credenziali non valide');
+        setError(`Errore nel login: ${userError.message}`);
         return;
       }
 
+      if (!user) {
+        console.error('Utente non trovato');
+        setError('Utente non trovato');
+        return;
+      }
+
+      console.log('Utente trovato:', { user });
+
       if (user.password !== password) {
+        console.error('Password non corretta');
         setError('Password non corretta');
         return;
       }
