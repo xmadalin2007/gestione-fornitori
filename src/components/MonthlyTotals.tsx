@@ -32,6 +32,7 @@ const monthNames = [
 
 export default function MonthlyTotals({ entries, suppliers }: MonthlyTotalsProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedSuppliers, setExpandedSuppliers] = useState<{[key: string]: boolean}>({});
 
   // Creiamo un dizionario dei fornitori per accesso rapido
   const suppliersMap = useMemo(() => {
@@ -122,12 +123,73 @@ export default function MonthlyTotals({ entries, suppliers }: MonthlyTotalsProps
     return data;
   }, [filteredEntries, suppliersMap]);
 
+  const annualTotals = useMemo(() => {
+    const totals: {[key: string]: {contanti: number, bonifico: number, total: number, name: string}} = {};
+    
+    filteredEntries.forEach(entry => {
+      if (!totals[entry.supplierId]) {
+        totals[entry.supplierId] = {
+          contanti: 0,
+          bonifico: 0,
+          total: 0,
+          name: suppliersMap[entry.supplierId]?.name || 'Fornitore non trovato'
+        };
+      }
+      
+      const amount = Number(entry.amount);
+      if (entry.paymentMethod === 'contanti') {
+        totals[entry.supplierId].contanti += amount;
+      } else if (entry.paymentMethod === 'bonifico') {
+        totals[entry.supplierId].bonifico += amount;
+      }
+      totals[entry.supplierId].total += amount;
+    });
+    
+    return totals;
+  }, [filteredEntries, suppliersMap]);
+
+  const toggleSupplier = (supplierId: string) => {
+    setExpandedSuppliers(prev => ({
+      ...prev,
+      [supplierId]: !prev[supplierId]
+    }));
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Totali Mensili</h2>
         <div className="w-full sm:w-96">
           <SearchBar onSearch={setSearchQuery} />
+        </div>
+      </div>
+
+      <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Totali Annuali per Fornitore</h3>
+        </div>
+        <div className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            {Object.entries(annualTotals).map(([supplierId, data]) => (
+              <div key={supplierId} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                <h4 className="text-base font-medium text-gray-900 mb-2">{data.name}</h4>
+                <div className="space-y-2">
+                  <div className="bg-blue-50 p-2 rounded">
+                    <span className="text-sm text-gray-600">Contanti:</span>
+                    <span className="float-right font-semibold text-blue-600">{data.contanti.toFixed(2)} €</span>
+                  </div>
+                  <div className="bg-green-50 p-2 rounded">
+                    <span className="text-sm text-gray-600">Bonifico:</span>
+                    <span className="float-right font-semibold text-green-600">{data.bonifico.toFixed(2)} €</span>
+                  </div>
+                  <div className="bg-purple-50 p-2 rounded">
+                    <span className="text-sm text-gray-600">Totale:</span>
+                    <span className="float-right font-semibold text-purple-600">{data.total.toFixed(2)} €</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       
@@ -161,37 +223,53 @@ export default function MonthlyTotals({ entries, suppliers }: MonthlyTotalsProps
               </div>
 
               <div className="mt-6">
-                <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Dettaglio per Fornitore</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                  {Object.entries(monthData.bySupplier).map(([supplierId, data]) => (
-                    <div key={supplierId} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-2">
-                        <h5 className="text-sm font-medium text-gray-700">{data.name}</h5>
-                        <p className="text-base sm:text-lg font-semibold text-gray-900">{data.amount.toFixed(2)} €</p>
-                      </div>
-                      <div className="space-y-2">
-                        {data.entries.map(entry => (
-                          <div key={entry.id} className="text-sm text-gray-600 bg-white rounded p-2 shadow-sm">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                              <span className="font-medium">{entry.description || 'Nessuna descrizione'}</span>
-                              <div className="flex items-center gap-2 text-xs">
-                                <span className="bg-gray-100 px-2 py-1 rounded">
-                                  {new Date(entry.date).toLocaleDateString()}
-                                </span>
-                                <span className={`px-2 py-1 rounded ${
-                                  entry.paymentMethod === 'contanti' 
-                                    ? 'bg-blue-100 text-blue-700'
-                                    : 'bg-green-100 text-green-700'
-                                }`}>
-                                  {entry.paymentMethod}
-                                </span>
+                <button 
+                  onClick={() => Object.keys(monthData.bySupplier).forEach(id => toggleSupplier(`${monthName}-${id}`))}
+                  className="w-full text-left flex items-center justify-between text-base sm:text-lg font-medium text-gray-900 mb-4 hover:text-gray-700"
+                >
+                  <span>Dettaglio per Fornitore</span>
+                  <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4`}>
+                  {Object.entries(monthData.bySupplier).map(([supplierId, data]) => {
+                    const supplierKey = `${monthName}-${supplierId}`;
+                    const isExpanded = expandedSuppliers[supplierKey];
+                    
+                    return (
+                      <div key={supplierId} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                        <button 
+                          onClick={() => toggleSupplier(supplierKey)}
+                          className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-2"
+                        >
+                          <h5 className="text-sm font-medium text-gray-700">{data.name}</h5>
+                          <p className="text-base sm:text-lg font-semibold text-gray-900">{data.amount.toFixed(2)} €</p>
+                        </button>
+                        <div className={`space-y-2 ${isExpanded ? '' : 'hidden'}`}>
+                          {data.entries.map(entry => (
+                            <div key={entry.id} className="text-sm text-gray-600 bg-white rounded p-2 shadow-sm">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                                <span className="font-medium">{entry.description || 'Nessuna descrizione'}</span>
+                                <div className="flex items-center gap-2 text-xs">
+                                  <span className="bg-gray-100 px-2 py-1 rounded">
+                                    {new Date(entry.date).toLocaleDateString()}
+                                  </span>
+                                  <span className={`px-2 py-1 rounded ${
+                                    entry.paymentMethod === 'contanti' 
+                                      ? 'bg-blue-100 text-blue-700'
+                                      : 'bg-green-100 text-green-700'
+                                  }`}>
+                                    {entry.paymentMethod}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
